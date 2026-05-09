@@ -5,9 +5,8 @@ import { api } from '../../lib/api';
 import { relTime } from '../../lib/format';
 import { paths } from '../../router/paths';
 import { Avatar } from '../../components/Avatar';
+import { AsyncList } from '../../components/AsyncList';
 import { Button } from '../../components/Button';
-import { EmptyState } from '../../components/EmptyState';
-import { Spinner } from '../../components/Spinner';
 import type { Customer } from '@shared/schemas';
 
 export default function CustomersList(): JSX.Element {
@@ -64,51 +63,20 @@ export default function CustomersList(): JSX.Element {
       </form>
 
       <div className="fade-up fade-up-2">
-        <CustomerResults
+        <AsyncList
           state={customers}
-          search={search}
-          onClick={(c) => navigate(paths.customers.detail(c.id))}
-        />
+          loadingLabel="Looking through the rolodex…"
+          emptyTitle="No customers on file"
+          emptyBody={search ? 'Nothing matches that search.' : 'Add a customer to start writing contracts against them.'}
+          emptyAction={<Link to={paths.customers.new}><Button variant="primary">Add first customer</Button></Link>}
+        >
+          {(rows) => (
+            <CustomerGrid customers={rows} onClick={(c) => navigate(paths.customers.detail(c.id))} />
+          )}
+        </AsyncList>
       </div>
     </div>
   );
-}
-
-function CustomerResults({
-  state,
-  search,
-  onClick,
-}: {
-  state: ReturnType<typeof useAsync<Customer[]>>;
-  search: string;
-  onClick: (c: Customer) => void;
-}): JSX.Element {
-  if (state.status === 'idle' || state.status === 'loading') {
-    return (
-      <div className="card row" style={{ justifyContent: 'center' }}>
-        <Spinner />
-        <span className="muted" style={{ marginLeft: 10 }}>Looking through the rolodex…</span>
-      </div>
-    );
-  }
-  if (state.status === 'error') {
-    return (
-      <div className="card" style={{ borderColor: 'var(--bad)' }}>
-        <span className="eyebrow" style={{ color: 'var(--bad)' }}>Error</span>
-        <p style={{ marginTop: 6 }}>{state.error.message}</p>
-      </div>
-    );
-  }
-  if (state.data.length === 0) {
-    return (
-      <EmptyState
-        title="No customers on file"
-        body={search ? 'Nothing matches that search.' : 'Add a customer to start writing contracts against them.'}
-        actions={<Link to={paths.customers.new}><Button variant="primary">Add first customer</Button></Link>}
-      />
-    );
-  }
-  return <CustomerGrid customers={state.data} onClick={onClick} />;
 }
 
 function CustomerGrid({ customers, onClick }: { customers: Customer[]; onClick: (c: Customer) => void }): JSX.Element {

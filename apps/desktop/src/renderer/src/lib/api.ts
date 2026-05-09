@@ -48,4 +48,18 @@ export const api = {
       unwrap(window.donkor.customers.update(id, patch)),
     softDelete: (id: string) => unwrap(window.donkor.customers.softDelete(id)),
   },
+  bookings: {
+    list: (filter?: Parameters<typeof window.donkor.bookings.list>[0]) =>
+      unwrap(window.donkor.bookings.list(filter)),
+    get: (id: string) => unwrap(window.donkor.bookings.get(id)),
+    create: (input: Parameters<typeof window.donkor.bookings.create>[0]) =>
+      unwrap(window.donkor.bookings.create(input)),
+    update: (id: string, patch: Parameters<typeof window.donkor.bookings.update>[1]) =>
+      unwrap(window.donkor.bookings.update(id, patch)),
+    transition: (id: string, next: Parameters<typeof window.donkor.bookings.transition>[1]) =>
+      unwrap(window.donkor.bookings.transition(id, next)),
+    checkConflicts: (input: Parameters<typeof window.donkor.bookings.checkConflicts>[0]) =>
+      unwrap(window.donkor.bookings.checkConflicts(input)),
+    softDelete: (id: string) => unwrap(window.donkor.bookings.softDelete(id)),
+  },
 };

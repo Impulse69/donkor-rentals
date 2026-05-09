@@ -1,6 +1,7 @@
 import { ipcMain, app } from 'electron';
 import { registerCatalogIpc } from './handlers/catalog';
 import { registerCustomersIpc } from './handlers/customers';
+import { registerBookingsIpc } from './handlers/bookings';
 
 /**
  * IPC handler registration. The renderer reaches main only via these channels.
@@ -11,4 +12,5 @@ export function registerIpc(): void {
   ipcMain.handle('app:getVersion', () => app.getVersion());
   registerCatalogIpc();
   registerCustomersIpc();
+  registerBookingsIpc();
 }

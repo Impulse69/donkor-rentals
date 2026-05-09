@@ -31,6 +31,13 @@ const Customers = {
   Detail: lazy(() => import('../routes/customers/Detail')),
 };
 
+const Bookings = {
+  List: lazy(() => import('../routes/bookings/List')),
+  Calendar: lazy(() => import('../routes/bookings/Calendar')),
+  Form: lazy(() => import('../routes/bookings/Form')),
+  Detail: lazy(() => import('../routes/bookings/Detail')),
+};
+
 const Dashboard = lazy(() => import('../routes/Dashboard'));
 
 export const routes: RouteDef[] = [
@@ -60,6 +67,17 @@ export const routes: RouteDef[] = [
   { path: '/customers/new', element: Customers.Form, crumb: 'New customer' },
   { path: '/customers/:id', element: Customers.Detail, crumb: 'Customer' },
   { path: '/customers/:id/edit', element: Customers.Form, crumb: 'Edit' },
+
+  {
+    path: '/bookings',
+    element: Bookings.List,
+    crumb: 'Bookings',
+    nav: { label: 'Bookings', glyph: '03', section: 'OPERATIONS' },
+  },
+  { path: '/bookings/calendar', element: Bookings.Calendar, crumb: 'Calendar' },
+  { path: '/bookings/new', element: Bookings.Form, crumb: 'New booking' },
+  { path: '/bookings/:id', element: Bookings.Detail, crumb: 'Booking' },
+  { path: '/bookings/:id/edit', element: Bookings.Form, crumb: 'Edit' },
 ];
 
 /**

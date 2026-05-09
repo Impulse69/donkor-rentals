@@ -8,6 +8,14 @@ import { Spinner } from '../components/Spinner';
 export default function Dashboard(): JSX.Element {
   const items = useAsync(() => api.catalog.list({}), []);
   const customers = useAsync(() => api.customers.list({}), []);
+  const activeBookings = useAsync(
+    () =>
+      Promise.all([
+        api.bookings.list({ status: 'reserved' }),
+        api.bookings.list({ status: 'out' }),
+      ]).then(([rs, os]) => [...rs, ...os]),
+    [],
+  );
 
   const itemCount = items.status === 'ok' ? items.data.length : 0;
   const customerCount = customers.status === 'ok' ? customers.data.length : 0;
@@ -18,6 +26,7 @@ export default function Dashboard(): JSX.Element {
   const portfolioValue = items.status === 'ok'
     ? items.data.reduce((sum, i) => sum + i.replacement_value_pesewas * i.total_quantity, 0)
     : 0;
+  const activeCount = activeBookings.status === 'ok' ? activeBookings.data.length : 0;
 
   return (
     <div className="page fade-up">
@@ -33,9 +42,9 @@ export default function Dashboard(): JSX.Element {
       </header>
 
       <section className="grid-3 fade-up fade-up-1">
+        <Stat label="Active bookings" value={activeBookings.status === 'ok' ? activeCount : null} hint="Reserved or on the road" to={paths.bookings.list} />
         <Stat label="Catalog items" value={items.status === 'ok' ? itemCount : null} hint="Across both lines" to={paths.catalog.list} />
         <Stat label="Customers on file" value={customers.status === 'ok' ? customerCount : null} hint="Past and present" to={paths.customers.list} />
-        <Stat label="Hearses in fleet" value={items.status === 'ok' ? fleetCount : null} hint="Tracked per unit" to={paths.catalog.listFiltered({ kind: 'hearse' })} />
       </section>
 
       <section className="card fade-up fade-up-2">
@@ -53,10 +62,10 @@ export default function Dashboard(): JSX.Element {
 
       <section className="card card-warm fade-up fade-up-3">
         <span className="eyebrow">Roadmap</span>
-        <h3 style={{ marginTop: 6 }}>Next: Bookings & Scheduling</h3>
+        <h3 style={{ marginTop: 6 }}>Next: Invoicing & Payments</h3>
         <p className="muted" style={{ maxWidth: 600 }}>
-          Phase 2 introduces a calendar of availability with conflict detection — hearses get a
-          driver/odometer/fuel layer, and party supplies become reservable from the catalog.
+          Phase 3 turns the booking quote into an invoice, takes deposits and partial payments
+          against it, and prints a receipt. PDFs and damage reconciliation follow.
         </p>
       </section>
     </div>

@@ -24,4 +24,11 @@ export const paths = {
     detail: (id: string) => `/customers/${id}`,
     edit: (id: string) => `/customers/${id}/edit`,
   },
+  bookings: {
+    list: '/bookings',
+    calendar: '/bookings/calendar',
+    new: '/bookings/new',
+    detail: (id: string) => `/bookings/${id}`,
+    edit: (id: string) => `/bookings/${id}/edit`,
+  },
 } as const;

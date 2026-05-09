@@ -11,7 +11,22 @@ import type {
   CustomerCreateInput,
   CustomerUpdateInput,
   CustomerFilter,
+  Booking,
+  BookingCreateInput,
+  BookingUpdateInput,
+  BookingFilter,
+  BookingStatus,
+  BookingLine,
+  ConflictCheckInput,
+  ConflictReport,
 } from '../../../packages/shared/src/schemas';
+
+interface BookingWithCustomer extends Booking {
+  customer_name: string;
+}
+interface BookingWithLines extends BookingWithCustomer {
+  lines: BookingLine[];
+}
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: { code: string; message: string } };
 
@@ -46,6 +61,19 @@ const api = {
     update: (id: string, patch: CustomerUpdateInput) =>
       call<Customer>('customers:update', { id, patch }),
     softDelete: (id: string) => call<{ id: string }>('customers:softDelete', { id }),
+  },
+
+  bookings: {
+    list: (filter?: BookingFilter) => call<BookingWithCustomer[]>('bookings:list', filter ?? {}),
+    get: (id: string) => call<BookingWithLines | null>('bookings:get', { id }),
+    create: (input: BookingCreateInput) => call<BookingWithLines>('bookings:create', input),
+    update: (id: string, patch: BookingUpdateInput) =>
+      call<BookingWithLines>('bookings:update', { id, patch }),
+    transition: (id: string, next: BookingStatus) =>
+      call<BookingWithLines>('bookings:transition', { id, next }),
+    checkConflicts: (input: ConflictCheckInput) =>
+      call<ConflictReport[]>('bookings:checkConflicts', input),
+    softDelete: (id: string) => call<{ id: string }>('bookings:softDelete', { id }),
   },
 } as const;
 

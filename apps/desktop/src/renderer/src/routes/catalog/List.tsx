@@ -6,8 +6,7 @@ import { formatGhs } from '../../lib/format';
 import { paths } from '../../router/paths';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
-import { EmptyState } from '../../components/EmptyState';
-import { Spinner } from '../../components/Spinner';
+import { AsyncList } from '../../components/AsyncList';
 import type { Item, ItemKind, ItemStatus } from '@shared/schemas';
 
 const KIND_OPTIONS: ReadonlyArray<{ value: ItemKind | 'all'; label: string }> = [
@@ -107,52 +106,20 @@ export default function CatalogList(): JSX.Element {
       </form>
 
       <div className="fade-up fade-up-2">
-        <CatalogResults
+        <AsyncList
           state={items}
-          search={search}
-          onItemClick={(i) => navigate(paths.catalog.detail(i.id))}
-        />
+          loadingLabel="Reading the ledger…"
+          emptyTitle="No items yet"
+          emptyBody={search ? 'Try a different search.' : 'Register the first piece of inventory to get going.'}
+          emptyAction={<Link to={paths.catalog.new}><Button variant="primary">Add first item</Button></Link>}
+        >
+          {(rows) => (
+            <ItemTable items={rows} onClick={(i) => navigate(paths.catalog.detail(i.id))} />
+          )}
+        </AsyncList>
       </div>
     </div>
   );
-}
-
-function CatalogResults({
-  state,
-  search,
-  onItemClick,
-}: {
-  state: ReturnType<typeof useAsync<Item[]>>;
-  search: string;
-  onItemClick: (i: Item) => void;
-}): JSX.Element {
-  if (state.status === 'idle' || state.status === 'loading') {
-    return (
-      <div className="card row" style={{ justifyContent: 'center' }}>
-        <Spinner />
-        <span className="muted" style={{ marginLeft: 10 }}>Reading the ledger…</span>
-      </div>
-    );
-  }
-  if (state.status === 'error') {
-    return (
-      <div className="card" style={{ borderColor: 'var(--bad)' }}>
-        <span className="eyebrow" style={{ color: 'var(--bad)' }}>Error</span>
-        <p style={{ marginTop: 6 }}>{state.error.message}</p>
-      </div>
-    );
-  }
-  if (state.data.length === 0) {
-    return (
-      <EmptyState
-        icon={<span style={{ fontSize: 26 }}>·</span>}
-        title="No items yet"
-        body={search ? 'Try a different search.' : 'Register the first piece of inventory to get going.'}
-        actions={<Link to={paths.catalog.new}><Button variant="primary">Add first item</Button></Link>}
-      />
-    );
-  }
-  return <ItemTable items={state.data} onClick={onItemClick} />;
 }
 
 function ItemTable({ items, onClick }: { items: Item[]; onClick: (item: Item) => void }): JSX.Element {

@@ -68,7 +68,7 @@ export function seedIfEmpty(db: Database): void {
   const existing = db.prepare('SELECT COUNT(*) as n FROM items').get() as { n: number };
   if (existing.n > 0) return;
 
-  log.info('seeding starter catalog + customers');
+  log.info('seeding starter catalog + customers + sample bookings');
   const now = new Date().toISOString();
 
   const insertItem = db.prepare(
@@ -83,20 +83,86 @@ export function seedIfEmpty(db: Database): void {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
   );
 
+  const insertBooking = db.prepare(
+    `INSERT INTO bookings (id, tenant_id, customer_id, status, starts_at, ends_at,
+       pickup_location, dropoff_location, driver_name, notes, created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+  );
+  const insertLine = db.prepare(
+    `INSERT INTO booking_lines (id, tenant_id, booking_id, item_id, item_unit_id, quantity,
+       daily_rate_pesewas, odometer_start_km, odometer_end_km, fuel_litres_start, fuel_litres_end,
+       notes, created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+  );
+
+  const itemIdsBySku = new Map<string, string>();
+  const customerIdsByName = new Map<string, string>();
+
   const tx = db.transaction(() => {
     for (const it of ITEMS) {
+      const id = uuidv4();
+      itemIdsBySku.set(it.sku, id);
       insertItem.run(
-        uuidv4(), tenantId, it.kind, it.sku, it.name, it.description,
+        id, tenantId, it.kind, it.sku, it.name, it.description,
         it.daily_rate_pesewas, it.replacement_value_pesewas, it.total_quantity,
         now, now,
       );
     }
     for (const c of CUSTOMERS) {
+      const id = uuidv4();
+      customerIdsByName.set(c.name, id);
       insertCustomer.run(
-        uuidv4(), tenantId, c.name, c.phone, c.email, c.id_type, c.id_number,
+        id, tenantId, c.name, c.phone, c.email, c.id_type, c.id_number,
         c.address, c.notes, now, now,
       );
     }
+
+    // Two illustrative bookings so the calendar has something to show.
+    const inDays = (n: number, hours = 8): string => {
+      const d = new Date();
+      d.setDate(d.getDate() + n);
+      d.setHours(hours, 0, 0, 0);
+      return d.toISOString();
+    };
+
+    const booking1 = uuidv4();
+    insertBooking.run(
+      booking1, tenantId,
+      customerIdsByName.get('Akosua Mensah'),
+      'reserved',
+      inDays(3, 8), inDays(5, 18),
+      'Shop yard', 'East Legon — community centre',
+      null,
+      'Annual fundraiser. Confirmed by phone Tuesday.',
+      now, now,
+    );
+    insertLine.run(
+      uuidv4(), tenantId, booking1,
+      itemIdsBySku.get('CHR-WHT-01'), null, 80, 800,
+      null, null, null, null, null, now, now,
+    );
+    insertLine.run(
+      uuidv4(), tenantId, booking1,
+      itemIdsBySku.get('TBL-RND-72'), null, 8, 4500,
+      null, null, null, null, null, now, now,
+    );
+
+    const booking2 = uuidv4();
+    insertBooking.run(
+      booking2, tenantId,
+      customerIdsByName.get('Kwame Asare'),
+      'quote',
+      inDays(10, 6), inDays(11, 14),
+      'Shop yard', 'Osu mortuary',
+      'Joseph Boateng',
+      'Family burial — requested Cadillac specifically.',
+      now, now,
+    );
+    insertLine.run(
+      uuidv4(), tenantId, booking2,
+      itemIdsBySku.get('HRS-CADILLAC-XTS'), null, 1, 320000,
+      null, null, null, null, null, now, now,
+    );
   });
   tx();
 }
