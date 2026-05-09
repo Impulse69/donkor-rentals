@@ -1,33 +1,26 @@
-import { useEffect, useState } from 'react';
+import { Suspense } from 'react';
+import { HashRouter, Routes, Route } from 'react-router-dom';
+import { Shell, PageLoader } from './components/Shell';
+import { ToastProvider } from './components/Toast';
+import { routes } from './router/routes';
+import { NotFound } from './routes/NotFound';
 
 export function App(): JSX.Element {
-  const [version, setVersion] = useState<string>('…');
-  const [pong, setPong] = useState<string>('…');
-
-  useEffect(() => {
-    void window.donkor.getAppVersion().then(setVersion);
-    void window.donkor.ping().then(setPong);
-  }, []);
-
   return (
-    <main className="shell">
-      <header>
-        <h1>Donkor &amp; Sons</h1>
-        <span className="tag">Rentals</span>
-      </header>
-      <section className="card">
-        <h2>Phase 0 — scaffold</h2>
-        <dl>
-          <dt>App version</dt>
-          <dd>{version}</dd>
-          <dt>IPC ping</dt>
-          <dd>{pong}</dd>
-        </dl>
-        <p className="muted">
-          Catalog, customers, bookings, invoicing, sync, PDFs, reports and auto-update arrive in
-          subsequent phases.
-        </p>
-      </section>
-    </main>
+    <HashRouter>
+      <ToastProvider>
+        <Shell>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              {routes.map((r) => {
+                const Element = r.element;
+                return <Route key={r.path} path={r.path} element={<Element />} />;
+              })}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </Shell>
+      </ToastProvider>
+    </HashRouter>
   );
 }

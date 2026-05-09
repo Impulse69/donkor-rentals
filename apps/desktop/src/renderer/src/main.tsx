@@ -1,7 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
-import './styles/global.css';
+import './design/global.css';
+import './components/components.css';
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('#root not found');

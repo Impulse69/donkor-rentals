@@ -1,0 +1,86 @@
+/*
+  Donkor & Sons design tokens.
+  Editorial-utility hybrid: warm cream paper, deep umber ink, kente-goldenrod accent,
+  hairline rules. Tabular figures everywhere.
+*/
+
+:root {
+  /* Surfaces — warm paper-like palette */
+  --paper:        #FAF6EE;     /* page background */
+  --paper-tint:   #F4EEE0;     /* subtle alternates, hover rows */
+  --panel:        #FFFFFF;     /* cards, modals */
+  --panel-warm:   #FBF5E8;     /* highlighted card */
+  --panel-shade:  #F0E9D7;     /* depressed surfaces */
+
+  /* Hairlines — never solid black; warm ink at low opacity */
+  --rule:         #E2D8C2;
+  --rule-strong:  #C8B894;
+  --rule-soft:    #EFE8D5;
+
+  /* Ink */
+  --ink:          #1A1410;     /* primary text */
+  --ink-2:        #3F2A1B;     /* deep umber — hearse module accent */
+  --ink-mute:     #6B5E51;     /* secondary text */
+  --ink-faint:    #A8997F;     /* tertiary, captions */
+
+  /* Accent — kente goldenrod, used sparingly */
+  --gold:         #B8860B;
+  --gold-soft:    #D4A017;
+  --gold-faint:   #F2E4B8;
+  --gold-deep:    #8B6508;
+
+  /* Semantic */
+  --ok:           #446644;
+  --ok-soft:      #E1ECDD;
+  --warn:         #A8651E;
+  --warn-soft:    #F4E4D2;
+  --bad:          #8B2E2E;
+  --bad-soft:     #F2DCD8;
+  --info:         #2C5F7A;
+  --info-soft:    #DDE8EE;
+
+  /* Typography */
+  --font-display: 'Fraunces Variable', 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-body:    'Public Sans Variable', 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  /* Type scale — modest tight spacing for dense data UI */
+  --t-xs: 11px;
+  --t-sm: 12px;
+  --t-base: 13.5px;
+  --t-md: 15px;
+  --t-lg: 18px;
+  --t-xl: 22px;
+  --t-2xl: 28px;
+  --t-3xl: 36px;
+  --t-display: 48px;
+
+  /* Spacing */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-7: 32px;
+  --s-8: 40px;
+  --s-10: 56px;
+  --s-12: 72px;
+
+  /* Radii — minimal, mercantile feel */
+  --r-sm: 2px;
+  --r-md: 4px;
+  --r-lg: 6px;
+
+  /* Layout */
+  --shell-sidebar-w: 240px;
+  --shell-topbar-h:  56px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-1: 120ms;
+  --dur-2: 220ms;
+  --dur-3: 380ms;
+
+  color-scheme: light;
+}

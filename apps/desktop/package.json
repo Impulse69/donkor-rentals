@@ -19,6 +19,9 @@
   "dependencies": {
     "@donkor/db": "workspace:*",
     "@donkor/shared": "workspace:*",
+    "@fontsource-variable/fraunces": "^5.0.20",
+    "@fontsource-variable/public-sans": "^5.0.18",
+    "@fontsource/jetbrains-mono": "^5.0.20",
     "@supabase/supabase-js": "^2.43.0",
     "better-sqlite3": "^11.0.0",
     "date-fns": "^3.6.0",

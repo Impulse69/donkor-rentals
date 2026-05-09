@@ -2,6 +2,8 @@ import { app, BrowserWindow, shell } from 'electron';
 import { join } from 'node:path';
 import log from 'electron-log/main';
 import { registerIpc } from './ipc';
+import { openDb, closeDb, getDb } from './db';
+import { seedIfEmpty } from './db/seed';
 
 log.initialize();
 log.transports.file.level = 'info';
@@ -11,12 +13,13 @@ const isDev = !app.isPackaged;
 
 function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 1024,
-    minHeight: 700,
+    width: 1320,
+    height: 840,
+    minWidth: 1100,
+    minHeight: 720,
     show: false,
     autoHideMenuBar: true,
+    backgroundColor: '#FAF6EE',
     title: 'Donkor & Sons — Rentals',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -44,6 +47,14 @@ function createMainWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  try {
+    openDb();
+    if (!app.isPackaged) seedIfEmpty(getDb());
+  } catch (err) {
+    log.error('failed to open database', err);
+    app.exit(1);
+    return;
+  }
   registerIpc();
   createMainWindow();
 
@@ -54,4 +65,8 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('will-quit', () => {
+  closeDb();
 });

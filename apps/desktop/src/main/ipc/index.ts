@@ -1,12 +1,14 @@
-import { ipcMain } from 'electron';
-import { app } from 'electron';
+import { ipcMain, app } from 'electron';
+import { registerCatalogIpc } from './handlers/catalog';
+import { registerCustomersIpc } from './handlers/customers';
 
 /**
  * IPC handler registration. The renderer reaches main only via these channels.
- * Phase 0: ping + app:getVersion. Real domain handlers (catalog, customers, ...)
- * are added in Phase 1+.
+ * Every handler is wrapped in `envelope.wrap` and returns `Result<T>`.
  */
 export function registerIpc(): void {
   ipcMain.handle('ping', () => 'pong');
   ipcMain.handle('app:getVersion', () => app.getVersion());
+  registerCatalogIpc();
+  registerCustomersIpc();
 }
