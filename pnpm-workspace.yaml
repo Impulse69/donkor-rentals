@@ -1,0 +1,10 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Native packages that need to run install/postinstall scripts.
+# pnpm 11+ requires explicit opt-in.
+allowBuilds:
+  better-sqlite3: true
+  electron: true
+  esbuild: true

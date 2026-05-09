@@ -1,0 +1,34 @@
+node_modules/
+dist/
+out/
+release/
+# Keep apps/desktop/build/ — electron-builder buildResources
+!apps/desktop/build/
+.vite/
+.turbo/
+*.log
+*.tsbuildinfo
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Editors
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Local DBs / artifacts
+*.sqlite
+*.sqlite-*
+*.db
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/
+
+# OS
+desktop.ini

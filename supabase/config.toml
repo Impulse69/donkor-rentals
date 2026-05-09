@@ -1,0 +1,45 @@
+# Supabase project config (local dev via `supabase start`).
+# Replace project_id with the value from `supabase init` once you provision the cloud project.
+
+project_id = "donkor-rentals"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[auth]
+enabled = true
+site_url = "http://localhost:54321"
+additional_redirect_urls = ["donkor-rentals://auth/callback"]
+jwt_expiry = 3600
+enable_signup = false  # owners invite staff; no public signup
+
+[auth.email]
+enable_signup = false
+enable_confirmations = false  # local dev convenience; turn on in cloud
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[realtime]
+enabled = true
+
+[edge_runtime]
+enabled = false

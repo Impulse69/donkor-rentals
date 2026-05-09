@@ -1,0 +1,40 @@
+{
+  "name": "donkor-rentals",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Desktop rental management software for Donkor & Sons (party supplies + hearses).",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.0.9",
+  "scripts": {
+    "dev": "pnpm -F @donkor/desktop dev",
+    "build": "pnpm -r build",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm -F @donkor/desktop test:e2e",
+    "package": "pnpm -F @donkor/desktop package",
+    "release": "pnpm -F @donkor/desktop release"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "electron",
+      "esbuild"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@typescript-eslint/eslint-plugin": "^7.7.0",
+    "@typescript-eslint/parser": "^7.7.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.34.1",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "prettier": "^3.2.5",
+    "typescript": "^5.4.5"
+  }
+}

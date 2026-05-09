@@ -1,0 +1,31 @@
+appId: com.donkorandsons.rentals
+productName: Donkor & Sons Rentals
+copyright: Copyright © ${author}
+directories:
+  output: release/${version}
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+  - "!**/*.{md,map,ts}"
+asar: true
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: DonkorRentals-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Donkor Rentals
+publish:
+  provider: github
+  owner: REPLACE_WITH_GITHUB_OWNER
+  repo: donkor-rentals
+  releaseType: release
