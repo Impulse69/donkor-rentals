@@ -21,17 +21,5 @@ export function daysCovered(starts: string, ends: string): number {
   return Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)));
 }
 
-export function localDateInput(iso: string): string {
-  // Returns YYYY-MM-DD for an <input type="date">. Uses local TZ.
-  const d = new Date(iso);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-export function dateInputToIso(date: string, time = '08:00'): string {
-  // Build an ISO-with-offset string from a local date + time string.
-  const d = new Date(`${date}T${time}`);
-  return d.toISOString();
-}
+// Date-input bridge helpers live in lib/dates so other domains can reuse them.
+export { localDateInput, dateInputToIso, todayInput } from '../../lib/dates';

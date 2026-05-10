@@ -31,4 +31,9 @@ export const paths = {
     detail: (id: string) => `/bookings/${id}`,
     edit: (id: string) => `/bookings/${id}/edit`,
   },
+  invoices: {
+    list: '/invoices',
+    detail: (id: string) => `/invoices/${id}`,
+    fromBooking: (bookingId: string) => `/invoices/new?from=${encodeURIComponent(bookingId)}`,
+  },
 } as const;

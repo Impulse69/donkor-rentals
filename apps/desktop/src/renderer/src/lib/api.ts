@@ -62,4 +62,19 @@ export const api = {
       unwrap(window.donkor.bookings.checkConflicts(input)),
     softDelete: (id: string) => unwrap(window.donkor.bookings.softDelete(id)),
   },
+  invoices: {
+    list: (filter?: Parameters<typeof window.donkor.invoices.list>[0]) =>
+      unwrap(window.donkor.invoices.list(filter)),
+    get: (id: string) => unwrap(window.donkor.invoices.get(id)),
+    createFromBooking: (input: Parameters<typeof window.donkor.invoices.createFromBooking>[0]) =>
+      unwrap(window.donkor.invoices.createFromBooking(input)),
+    update: (id: string, patch: Parameters<typeof window.donkor.invoices.update>[1]) =>
+      unwrap(window.donkor.invoices.update(id, patch)),
+    softDelete: (id: string) => unwrap(window.donkor.invoices.softDelete(id)),
+  },
+  payments: {
+    record: (input: Parameters<typeof window.donkor.payments.record>[0]) =>
+      unwrap(window.donkor.payments.record(input)),
+    void: (id: string) => unwrap(window.donkor.payments.void(id)),
+  },
 };

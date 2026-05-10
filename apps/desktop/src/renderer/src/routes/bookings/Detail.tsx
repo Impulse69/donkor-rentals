@@ -96,6 +96,7 @@ export default function BookingDetail(): JSX.Element {
               {labelForTransition(b.status, t)}
             </Button>
           ))}
+          <Link to={paths.invoices.fromBooking(b.id)}><Button>Generate invoice</Button></Link>
           <Link to={paths.bookings.edit(b.id)}><Button>Edit</Button></Link>
           <Button variant="danger" onClick={() => { void onCancelDelete(); }}>Remove</Button>
         </div>

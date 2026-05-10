@@ -19,6 +19,13 @@ import type {
   BookingLine,
   ConflictCheckInput,
   ConflictReport,
+  Invoice,
+  InvoiceLine,
+  InvoiceFilter,
+  InvoiceCreateFromBooking,
+  InvoiceUpdateInput,
+  Payment,
+  PaymentCreateInput,
 } from '../../../packages/shared/src/schemas';
 
 interface BookingWithCustomer extends Booking {
@@ -26,6 +33,21 @@ interface BookingWithCustomer extends Booking {
 }
 interface BookingWithLines extends BookingWithCustomer {
   lines: BookingLine[];
+}
+
+interface InvoiceListRow extends Invoice {
+  customer_name: string;
+  amount_paid_pesewas: number;
+  balance_due_pesewas: number;
+}
+interface InvoiceWithLines extends Invoice {
+  customer_name: string;
+  booking_starts_at: string;
+  booking_ends_at: string;
+  lines: InvoiceLine[];
+  payments: Payment[];
+  amount_paid_pesewas: number;
+  balance_due_pesewas: number;
 }
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: { code: string; message: string } };
@@ -74,6 +96,22 @@ const api = {
     checkConflicts: (input: ConflictCheckInput) =>
       call<ConflictReport[]>('bookings:checkConflicts', input),
     softDelete: (id: string) => call<{ id: string }>('bookings:softDelete', { id }),
+  },
+
+  invoices: {
+    list: (filter?: InvoiceFilter) => call<InvoiceListRow[]>('invoices:list', filter ?? {}),
+    get: (id: string) => call<InvoiceWithLines | null>('invoices:get', { id }),
+    createFromBooking: (input: InvoiceCreateFromBooking) =>
+      call<InvoiceWithLines>('invoices:createFromBooking', input),
+    update: (id: string, patch: InvoiceUpdateInput) =>
+      call<InvoiceWithLines>('invoices:update', { id, patch }),
+    softDelete: (id: string) => call<{ id: string }>('invoices:softDelete', { id }),
+  },
+
+  payments: {
+    record: (input: PaymentCreateInput) =>
+      call<{ payment: Payment; invoice: InvoiceWithLines }>('payments:record', input),
+    void: (id: string) => call<InvoiceWithLines>('payments:void', { id }),
   },
 } as const;
 
