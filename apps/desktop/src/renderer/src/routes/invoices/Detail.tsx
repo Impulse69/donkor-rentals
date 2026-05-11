@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useAsync } from '../../lib/useAsync';
 import { api } from '../../lib/api';
 import { paths } from '../../router/paths';
@@ -33,11 +33,11 @@ import { invoiceStatusTone, paymentKindTone } from './helpers';
 
 export default function InvoiceDetail(): JSX.Element {
   const { id = '' } = useParams();
-  const navigate = useNavigate();
   const toast = useToast();
   const invoice = useAsync(() => api.invoices.get(id), [id]);
   const [statusBusy, setStatusBusy] = useState(false);
   const [showPay, setShowPay] = useState(false);
+  const [docBusy, setDocBusy] = useState(false);
 
   if (invoice.status === 'idle' || invoice.status === 'loading') {
     return <div className="row" style={{ justifyContent: 'center', padding: 60 }}><Spinner /></div>;
@@ -82,6 +82,27 @@ export default function InvoiceDetail(): JSX.Element {
     }
   }
 
+  async function generateInvoice(): Promise<void> {
+    setDocBusy(true);
+    try {
+      const doc = await api.documents.invoice(inv.id);
+      toast.ok(`${doc.title} archived`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not generate invoice');
+    } finally {
+      setDocBusy(false);
+    }
+  }
+
+  async function generateReceipt(paymentId: string): Promise<void> {
+    try {
+      const doc = await api.documents.receipt(paymentId);
+      toast.ok(`${doc.title} archived`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not generate receipt');
+    }
+  }
+
   return (
     <div className="page fade-up" style={{ maxWidth: 1180 }}>
       <header className="page-head">
@@ -109,6 +130,7 @@ export default function InvoiceDetail(): JSX.Element {
               {showPay ? 'Cancel payment' : '+ Record payment'}
             </Button>
           )}
+          <Button loading={docBusy} onClick={() => { void generateInvoice(); }}>Archive invoice</Button>
           {(inv.status === 'draft' || inv.status === 'issued') && (
             <Button variant="danger" loading={statusBusy} onClick={() => { void moveStatus('void'); }}>
               Void
@@ -206,6 +228,9 @@ export default function InvoiceDetail(): JSX.Element {
                         {p.kind === 'refund' ? '− ' : ''}{formatGhs(p.amount_pesewas)}
                       </td>
                       <td>
+                        <Button size="sm" variant="ghost" onClick={() => { void generateReceipt(p.id); }}>
+                          Receipt
+                        </Button>
                         <Button size="sm" variant="ghost" onClick={() => { void onVoidPayment(p.id); }}>
                           Void
                         </Button>

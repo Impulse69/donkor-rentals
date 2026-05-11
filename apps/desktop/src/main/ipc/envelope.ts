@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import log from 'electron-log/main';
+import type { IpcMainInvokeEvent } from 'electron';
 
 /**
  * IPC handlers always return a Result envelope. Renderer never sees thrown errors —
@@ -20,8 +21,8 @@ export function wrap<I, O>(
   channel: string,
   inputSchema: z.ZodType<I>,
   fn: (input: I) => O | Promise<O>,
-): (raw: unknown) => Promise<Result<O>> {
-  return async (raw: unknown) => {
+): (_event: IpcMainInvokeEvent, raw?: unknown) => Promise<Result<O>> {
+  return async (_event: IpcMainInvokeEvent, raw?: unknown) => {
     try {
       const parsed = inputSchema.parse(raw);
       const data = await fn(parsed);

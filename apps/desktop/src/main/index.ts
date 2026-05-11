@@ -4,12 +4,17 @@ import log from 'electron-log/main';
 import { registerIpc } from './ipc';
 import { openDb, closeDb, getDb } from './db';
 import { seedIfEmpty } from './db/seed';
+import { getSupabaseClient } from './supabase/client';
+import { drainOutbox } from './sync/outbox';
+import { configureUpdates, stopUpdates } from './updates';
+import { captureCrash, configureCrashReporting } from './crash';
 
 log.initialize();
 log.transports.file.level = 'info';
 log.info('Donkor Rentals — main process starting');
 
 const isDev = !app.isPackaged;
+let syncTimer: NodeJS.Timeout | null = null;
 
 function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -56,6 +61,12 @@ app.whenReady().then(() => {
     return;
   }
   registerIpc();
+  configureCrashReporting(getDb());
+  configureUpdates(getDb());
+  syncTimer = setInterval(() => {
+    void drainOutbox(getDb(), getSupabaseClient()).catch((err) => log.warn('background sync failed', err));
+  }, 30_000);
+  void drainOutbox(getDb(), getSupabaseClient()).catch((err) => log.warn('initial sync failed', err));
   createMainWindow();
 
   app.on('activate', () => {
@@ -68,5 +79,17 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
+  if (syncTimer) clearInterval(syncTimer);
+  stopUpdates();
   closeDb();
+});
+
+process.on('uncaughtException', (err) => {
+  captureCrash(err);
+  log.error('uncaught exception', err);
+});
+
+process.on('unhandledRejection', (err) => {
+  captureCrash(err);
+  log.error('unhandled rejection', err);
 });

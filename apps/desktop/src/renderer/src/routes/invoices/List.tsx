@@ -41,7 +41,7 @@ export default function InvoicesList(): JSX.Element {
           <div className="page-eyebrow">Operations · Receivables</div>
           <h1 className="page-title">Invoices</h1>
           <p className="muted" style={{ marginTop: 8, maxWidth: 540 }}>
-            Bills issued against bookings, the deposits and payments against them, and what's
+            Bills issued against bookings, the deposits and payments against them, and what is
             still owed. Generate a new one from any booking.
           </p>
         </div>

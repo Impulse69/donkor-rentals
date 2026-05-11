@@ -77,4 +77,51 @@ export const api = {
       unwrap(window.donkor.payments.record(input)),
     void: (id: string) => unwrap(window.donkor.payments.void(id)),
   },
+  auth: {
+    getSession: () => unwrap(window.donkor.auth.getSession()),
+    completeFirstRun: (input: Parameters<typeof window.donkor.auth.completeFirstRun>[0]) =>
+      unwrap(window.donkor.auth.completeFirstRun(input)),
+    signIn: (input: Parameters<typeof window.donkor.auth.signIn>[0]) =>
+      unwrap(window.donkor.auth.signIn(input)),
+    signOut: () => unwrap(window.donkor.auth.signOut()),
+  },
+  sync: {
+    status: () => unwrap(window.donkor.sync.status()),
+    drain: () => unwrap(window.donkor.sync.drain()),
+    retryFailed: () => unwrap(window.donkor.sync.retryFailed()),
+    applyInbox: () => unwrap(window.donkor.sync.applyInbox()),
+    listConflicts: () => unwrap(window.donkor.sync.listConflicts()),
+    resolveConflict: (id: string, resolution: 'local' | 'remote') =>
+      unwrap(window.donkor.sync.resolveConflict(id, resolution)),
+  },
+  returns: {
+    list: () => unwrap(window.donkor.returns.list()),
+    get: (id: string) => unwrap(window.donkor.returns.get(id)),
+    create: (input: Parameters<typeof window.donkor.returns.create>[0]) =>
+      unwrap(window.donkor.returns.create(input)),
+    attachPhoto: (damageLineId: string, storagePath: string, caption?: string | null) =>
+      unwrap(window.donkor.returns.attachPhoto(damageLineId, storagePath, caption)),
+  },
+  documents: {
+    contract: (bookingId: string) => unwrap(window.donkor.documents.contract(bookingId)),
+    tripSheet: (bookingId: string) => unwrap(window.donkor.documents.tripSheet(bookingId)),
+    invoice: (invoiceId: string) => unwrap(window.donkor.documents.invoice(invoiceId)),
+    receipt: (paymentId: string) => unwrap(window.donkor.documents.receipt(paymentId)),
+    list: (sourceType: Parameters<typeof window.donkor.documents.list>[0], sourceId: string) =>
+      unwrap(window.donkor.documents.list(sourceType, sourceId)),
+  },
+  reports: {
+    overview: () => unwrap(window.donkor.reports.overview()),
+    utilization: (start: string, end: string) => unwrap(window.donkor.reports.utilization(start, end)),
+    topCustomers: (limit?: number) => unwrap(window.donkor.reports.topCustomers(limit)),
+    tripLog: (limit?: number) => unwrap(window.donkor.reports.tripLog(limit)),
+    damageSummary: () => unwrap(window.donkor.reports.damageSummary()),
+    exportCsv: () => unwrap(window.donkor.reports.exportCsv()),
+  },
+  settings: {
+    get: () => unwrap(window.donkor.settings.get()),
+    update: (patch: Parameters<typeof window.donkor.settings.update>[0]) =>
+      unwrap(window.donkor.settings.update(patch)),
+    checkForUpdates: () => unwrap(window.donkor.settings.checkForUpdates()),
+  },
 };

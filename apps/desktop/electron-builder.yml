@@ -26,6 +26,7 @@ nsis:
   shortcutName: Donkor Rentals
 publish:
   provider: github
-  owner: REPLACE_WITH_GITHUB_OWNER
+  owner: Impulse69
   repo: donkor-rentals
   releaseType: release
+generateUpdatesFilesForAllChannels: true

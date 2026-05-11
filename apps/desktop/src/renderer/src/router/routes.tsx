@@ -44,6 +44,14 @@ const Invoices = {
   Detail: lazy(() => import('../routes/invoices/Detail')),
 };
 
+const Returns = {
+  List: lazy(() => import('../routes/returns/List')),
+  Form: lazy(() => import('../routes/returns/Form')),
+};
+
+const Reconciliation = lazy(() => import('../routes/Reconciliation'));
+const Settings = lazy(() => import('../routes/Settings'));
+const Reports = lazy(() => import('../routes/Reports'));
 const Dashboard = lazy(() => import('../routes/Dashboard'));
 
 export const routes: RouteDef[] = [
@@ -93,6 +101,32 @@ export const routes: RouteDef[] = [
   },
   { path: '/invoices/new', element: Invoices.New, crumb: 'New invoice' },
   { path: '/invoices/:id', element: Invoices.Detail, crumb: 'Invoice' },
+
+  {
+    path: '/reconciliation',
+    element: Reconciliation,
+    crumb: 'Reconciliation',
+    nav: { label: 'Reconciliation', glyph: '07', section: 'ADMIN' },
+  },
+  {
+    path: '/returns',
+    element: Returns.List,
+    crumb: 'Returns',
+    nav: { label: 'Returns', glyph: '05', section: 'OPERATIONS' },
+  },
+  { path: '/returns/new/:bookingId', element: Returns.Form, crumb: 'New return' },
+  {
+    path: '/reports',
+    element: Reports,
+    crumb: 'Reports',
+    nav: { label: 'Reports', glyph: '06', section: 'OPERATIONS' },
+  },
+  {
+    path: '/settings',
+    element: Settings,
+    crumb: 'Settings',
+    nav: { label: 'Settings', glyph: '08', section: 'ADMIN' },
+  },
 ];
 
 /**

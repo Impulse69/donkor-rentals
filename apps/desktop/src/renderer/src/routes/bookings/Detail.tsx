@@ -24,6 +24,7 @@ export default function BookingDetail(): JSX.Element {
   const toast = useToast();
   const booking = useAsync(() => api.bookings.get(id), [id]);
   const [busy, setBusy] = useState(false);
+  const [docBusy, setDocBusy] = useState(false);
 
   if (booking.status === 'idle' || booking.status === 'loading') {
     return <div className="row" style={{ justifyContent: 'center', padding: 60 }}><Spinner /></div>;
@@ -72,6 +73,20 @@ export default function BookingDetail(): JSX.Element {
     }
   }
 
+  async function generate(kind: 'contract' | 'trip'): Promise<void> {
+    setDocBusy(true);
+    try {
+      const doc = kind === 'contract'
+        ? await api.documents.contract(b.id)
+        : await api.documents.tripSheet(b.id);
+      toast.ok(`${doc.title} archived`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not generate document');
+    } finally {
+      setDocBusy(false);
+    }
+  }
+
   return (
     <div className="page fade-up" style={{ maxWidth: 1100 }}>
       <header className="page-head">
@@ -96,6 +111,11 @@ export default function BookingDetail(): JSX.Element {
               {labelForTransition(b.status, t)}
             </Button>
           ))}
+          <Button loading={docBusy} onClick={() => { void generate('contract'); }}>Contract</Button>
+          <Button loading={docBusy} onClick={() => { void generate('trip'); }}>Trip sheet</Button>
+          {(b.status === 'out' || b.status === 'returned') && (
+            <Link to={`/returns/new/${b.id}`}><Button>Record return</Button></Link>
+          )}
           <Link to={paths.invoices.fromBooking(b.id)}><Button>Generate invoice</Button></Link>
           <Link to={paths.bookings.edit(b.id)}><Button>Edit</Button></Link>
           <Button variant="danger" onClick={() => { void onCancelDelete(); }}>Remove</Button>

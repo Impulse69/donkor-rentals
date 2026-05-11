@@ -5,8 +5,10 @@ import { paths } from '../router/paths';
 import { Avatar } from './Avatar';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Spinner } from './Spinner';
+import { api } from '../lib/api';
+import type { AuthSession, SyncStatus } from '@shared/schemas';
 
-const NAV_SECTIONS = ['WORKSPACE', 'OPERATIONS'] as const;
+const NAV_SECTIONS = ['WORKSPACE', 'OPERATIONS', 'ADMIN'] as const;
 
 export function Shell({ children }: { children: ReactNode }): JSX.Element {
   const location = useLocation();
@@ -78,7 +80,7 @@ function Foot(): JSX.Element {
   return (
     <div className="sidebar-foot">
       <span>v{version}</span>
-      <span>Phase 1</span>
+      <span>Phase 4</span>
     </div>
   );
 }
@@ -138,6 +140,69 @@ function Search(): JSX.Element {
 }
 
 function SyncPill(): JSX.Element {
+  const [status, setStatus] = useState<SyncStatus | null>(null);
+  useEffect(() => {
+    let alive = true;
+    function load(): void {
+      void api.sync.status().then((next) => {
+        if (alive) setStatus(next);
+      });
+    }
+    load();
+    const timer = setInterval(load, 15_000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  const label = !status
+    ? 'Sync'
+    : !status.configured
+      ? 'Local'
+      : status.failed > 0
+        ? 'Sync issue'
+        : status.pending > 0
+          ? `${status.pending} pending`
+          : 'Synced';
+  const klass = status?.configured && status.failed === 0 ? 'online' : status?.failed ? 'offline' : '';
+
+  return (
+    <Link
+      to="/reconciliation"
+      className={`sync-pill ${klass}`}
+      title={status?.lastError ?? (status?.configured ? 'Cloud sync is configured' : 'Cloud sync is not configured')}
+    >
+      <span className="dot" />
+      {label}
+    </Link>
+  );
+}
+
+function UserChip(): JSX.Element {
+  const [session, setSession] = useState<AuthSession | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void api.auth.getSession().then((next) => {
+      if (alive) setSession(next);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const label = session?.user.name ?? 'Setup';
+  const title = session ? `${session.user.email} · ${session.user.role}` : 'Complete first-run setup';
+
+  return (
+    <Link to="/settings" className="user-chip" title={title} style={{ textDecoration: 'none', color: 'inherit' }}>
+      <Avatar name={label} size={26} />
+      <span>{label}</span>
+    </Link>
+  );
+}
+
+function LegacySyncPill(): JSX.Element {
   // Phase 4 will replace this with the real sync engine status. For Phase 1 we
   // surface "local-only" so staff know data is on this machine.
   return (
@@ -148,7 +213,7 @@ function SyncPill(): JSX.Element {
   );
 }
 
-function UserChip(): JSX.Element {
+function LegacyUserChip(): JSX.Element {
   return (
     <span className="user-chip" title="Phase 4 enables Supabase auth and roles">
       <Avatar name="Donkor" size={26} />
@@ -156,6 +221,9 @@ function UserChip(): JSX.Element {
     </span>
   );
 }
+
+void LegacySyncPill;
+void LegacyUserChip;
 
 export function PageLoader(): JSX.Element {
   return (

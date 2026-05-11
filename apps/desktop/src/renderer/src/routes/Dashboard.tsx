@@ -24,8 +24,8 @@ export default function Dashboard(): JSX.Element {
       ]).then(([a, b]) => [...a, ...b]),
     [],
   );
+  const overview = useAsync(() => api.reports.overview(), []);
 
-  const itemCount = items.status === 'ok' ? items.data.length : 0;
   const customerCount = customers.status === 'ok' ? customers.data.length : 0;
   const fleetCount = items.status === 'ok' ? items.data.filter((i) => i.kind === 'hearse').length : 0;
   const supplyCount = items.status === 'ok'
@@ -38,6 +38,7 @@ export default function Dashboard(): JSX.Element {
   const outstandingTotal = outstanding.status === 'ok'
     ? outstanding.data.reduce((sum, r) => sum + r.balance_due_pesewas, 0)
     : 0;
+  const todayRevenue = overview.status === 'ok' ? overview.data.revenue_today_pesewas : null;
 
   return (
     <div className="page fade-up">
@@ -55,7 +56,7 @@ export default function Dashboard(): JSX.Element {
       <section className="grid-3 fade-up fade-up-1">
         <Stat label="Active bookings" value={activeBookings.status === 'ok' ? activeCount : null} hint="Reserved or on the road" to={paths.bookings.list} />
         <MoneyStat label="Outstanding receivables" value={outstanding.status === 'ok' ? outstandingTotal : null} hint="Across draft + issued invoices" to={paths.invoices.list} />
-        <Stat label="Customers on file" value={customers.status === 'ok' ? customerCount : null} hint="Past and present" to={paths.customers.list} />
+        <MoneyStat label="Revenue today" value={todayRevenue} hint="Payments minus refunds" to="/reports" />
       </section>
 
       <section className="card fade-up fade-up-2">
@@ -67,16 +68,17 @@ export default function Dashboard(): JSX.Element {
           <KV label="Party-supply units in pool" value={supplyCount.toLocaleString('en-GB')} />
           <KV label="Hearses on the books" value={String(fleetCount)} />
           <KV label="Replacement value (est.)" value={formatGhs(portfolioValue)} />
+          <KV label="Customers on file" value={customerCount.toLocaleString('en-GB')} />
           <KV label="Modules online" value="Catalog · Customers" />
         </div>
       </section>
 
       <section className="card card-warm fade-up fade-up-3">
-        <span className="eyebrow">Roadmap</span>
-        <h3 style={{ marginTop: 6 }}>Next: cloud sync & auth</h3>
+        <span className="eyebrow">Reports</span>
+        <h3 style={{ marginTop: 6 }}>Revenue, utilization, trips, and damage</h3>
         <p className="muted" style={{ maxWidth: 600 }}>
-          Phase 4 wires Supabase in: email + password sign-in, role-based gating, and a sync
-          engine that mirrors local writes to the cloud and back. Auto-update follows.
+          The reports workspace rolls up payments, balances, item utilization, hearse trips,
+          and damage charges with CSV export for owner review.
         </p>
       </section>
     </div>

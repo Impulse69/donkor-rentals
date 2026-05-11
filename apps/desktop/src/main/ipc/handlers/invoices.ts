@@ -10,6 +10,7 @@ import {
 import { wrap } from '../envelope';
 import { getDb, ensureBootstrapTenant } from '../../db';
 import * as invoices from '../../repositories/invoices';
+import { requireRole } from '../../repositories/auth';
 
 function tenant(): string {
   return ensureBootstrapTenant(getDb());
@@ -63,8 +64,9 @@ export function registerInvoicesIpc(): void {
 
   ipcMain.handle(
     'payments:void',
-    wrap('payments:void', z.object({ id: Uuid }), ({ id }) =>
-      invoices.voidPayment(getDb(), tenant(), id),
-    ),
+    wrap('payments:void', z.object({ id: Uuid }), ({ id }) => {
+      requireRole(getDb(), ['owner', 'manager']);
+      return invoices.voidPayment(getDb(), tenant(), id);
+    }),
   );
 }

@@ -26,6 +26,15 @@ import type {
   InvoiceUpdateInput,
   Payment,
   PaymentCreateInput,
+  AuthSession,
+  FirstRunInput,
+  SignInInput,
+  SyncStatus,
+  SyncConflict,
+  ReturnRecord,
+  ReturnCreateInput,
+  DamageLine,
+  DamagePhoto,
 } from '../../../packages/shared/src/schemas';
 
 interface BookingWithCustomer extends Booking {
@@ -48,6 +57,90 @@ interface InvoiceWithLines extends Invoice {
   payments: Payment[];
   amount_paid_pesewas: number;
   balance_due_pesewas: number;
+}
+
+interface ReturnWithLines extends ReturnRecord {
+  customer_name: string;
+  booking_starts_at: string;
+  booking_ends_at: string;
+  lines: DamageLine[];
+  photos: DamagePhoto[];
+}
+
+interface ArchivedDocument {
+  id: string;
+  tenant_id: string;
+  source_type: 'booking' | 'invoice' | 'payment' | 'return';
+  source_id: string;
+  kind: 'contract' | 'invoice' | 'receipt' | 'trip_sheet';
+  title: string;
+  storage_path: string | null;
+  html: string;
+  created_at: string;
+}
+
+interface ReportsOverview {
+  revenue_today_pesewas: number;
+  revenue_week_pesewas: number;
+  revenue_month_pesewas: number;
+  outstanding_pesewas: number;
+  active_bookings: number;
+  open_damage_pesewas: number;
+}
+interface UtilizationRow {
+  item_id: string;
+  item_name: string;
+  kind: 'party_supply' | 'hearse';
+  total_quantity: number;
+  booked_quantity_days: number;
+  utilization_percent: number;
+}
+interface TopCustomerRow {
+  customer_id: string;
+  customer_name: string;
+  revenue_pesewas: number;
+  bookings: number;
+}
+interface TripLogRow {
+  booking_id: string;
+  customer_name: string;
+  starts_at: string;
+  ends_at: string;
+  driver_name: string | null;
+  pickup_location: string | null;
+  dropoff_location: string | null;
+  item_name: string;
+  plate: string | null;
+  odometer_start_km: number | null;
+  odometer_end_km: number | null;
+}
+interface DamageSummaryRow {
+  item_id: string;
+  item_name: string;
+  damaged_quantity: number;
+  charges_pesewas: number;
+  write_offs: number;
+}
+interface AppSettings {
+  update_channel: 'latest' | 'beta';
+  crash_reporting_enabled: boolean;
+  sentry_dsn: string | null;
+}
+interface UpdateStatus {
+  channel: 'latest' | 'beta';
+  allowPrerelease: boolean;
+  checking: boolean;
+  lastCheckAt: string | null;
+  lastMessage: string | null;
+}
+interface CrashStatus {
+  enabled: boolean;
+  configured: boolean;
+}
+interface SettingsSnapshot {
+  settings: AppSettings;
+  updates: UpdateStatus;
+  crash: CrashStatus;
 }
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: { code: string; message: string } };
@@ -112,6 +205,56 @@ const api = {
     record: (input: PaymentCreateInput) =>
       call<{ payment: Payment; invoice: InvoiceWithLines }>('payments:record', input),
     void: (id: string) => call<InvoiceWithLines>('payments:void', { id }),
+  },
+
+  auth: {
+    getSession: () => call<AuthSession | null>('auth:getSession'),
+    completeFirstRun: (input: FirstRunInput) => call<AuthSession>('auth:firstRun', input),
+    signIn: (input: SignInInput) => call<AuthSession>('auth:signIn', input),
+    signOut: () => call<void>('auth:signOut'),
+  },
+
+  sync: {
+    status: () => call<SyncStatus>('sync:status'),
+    drain: () => call<SyncStatus>('sync:drain'),
+    retryFailed: () => call<SyncStatus>('sync:retryFailed'),
+    applyInbox: () => call<{ applied: number }>('sync:applyInbox'),
+    listConflicts: () => call<SyncConflict[]>('sync:listConflicts'),
+    resolveConflict: (id: string, resolution: 'local' | 'remote') =>
+      call<SyncConflict>('sync:resolveConflict', { id, resolution }),
+  },
+
+  returns: {
+    list: () => call<Array<ReturnRecord & { customer_name: string }>>('returns:list'),
+    get: (id: string) => call<ReturnWithLines | null>('returns:get', { id }),
+    create: (input: ReturnCreateInput) => call<ReturnWithLines>('returns:create', input),
+    attachPhoto: (damageLineId: string, storagePath: string, caption?: string | null) =>
+      call<DamagePhoto>('returns:attachPhoto', { damageLineId, storagePath, caption: caption ?? null }),
+  },
+
+  documents: {
+    contract: (bookingId: string) => call<ArchivedDocument>('documents:contract', { bookingId }),
+    tripSheet: (bookingId: string) => call<ArchivedDocument>('documents:tripSheet', { bookingId }),
+    invoice: (invoiceId: string) => call<ArchivedDocument>('documents:invoice', { invoiceId }),
+    receipt: (paymentId: string) => call<ArchivedDocument>('documents:receipt', { paymentId }),
+    list: (sourceType: ArchivedDocument['source_type'], sourceId: string) =>
+      call<ArchivedDocument[]>('documents:list', { sourceType, sourceId }),
+  },
+
+  reports: {
+    overview: () => call<ReportsOverview>('reports:overview'),
+    utilization: (start: string, end: string) =>
+      call<UtilizationRow[]>('reports:utilization', { start, end }),
+    topCustomers: (limit?: number) => call<TopCustomerRow[]>('reports:topCustomers', { limit }),
+    tripLog: (limit?: number) => call<TripLogRow[]>('reports:tripLog', { limit }),
+    damageSummary: () => call<DamageSummaryRow[]>('reports:damageSummary'),
+    exportCsv: () => call<string>('reports:exportCsv'),
+  },
+
+  settings: {
+    get: () => call<SettingsSnapshot>('settings:get'),
+    update: (patch: Partial<AppSettings>) => call<SettingsSnapshot>('settings:update', patch),
+    checkForUpdates: () => call<UpdateStatus>('settings:checkForUpdates'),
   },
 } as const;
 
