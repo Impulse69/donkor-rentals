@@ -6,6 +6,8 @@ import { paths } from '../router/paths';
 import { Spinner } from '../components/Spinner';
 
 export default function Dashboard(): JSX.Element {
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning.' : hour < 18 ? 'Good afternoon.' : 'Good evening.';
   const items = useAsync(() => api.catalog.list({}), []);
   const customers = useAsync(() => api.customers.list({}), []);
   const activeBookings = useAsync(
@@ -45,7 +47,7 @@ export default function Dashboard(): JSX.Element {
       <header className="page-head">
         <div>
           <div className="page-eyebrow">Workspace · Today</div>
-          <h1 className="page-title">Good morning.</h1>
+          <h1 className="page-title">{greeting}</h1>
           <p className="muted" style={{ maxWidth: 540, marginTop: 8 }}>
             A quiet desk. The shop’s active bookings, outstanding invoices, and inventory sit
             below — open any module from the sidebar.
