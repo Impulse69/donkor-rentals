@@ -1,5 +1,5 @@
 import type { Database } from 'better-sqlite3';
-import { app } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log/main';
 import { resolveUpdatePolicy } from '@shared/updates';
@@ -41,6 +41,9 @@ export function configureUpdates(db: Database): void {
   autoUpdater.on('update-downloaded', (info) => {
     checking = false;
     lastMessage = `Update downloaded: ${info.version}`;
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('update-downloaded', info.version);
+    }
   });
 
   updateTimer = setInterval(() => {
@@ -88,4 +91,8 @@ function applyUpdateSettings(settings: AppSettings): void {
   autoUpdater.channel = policy.channel;
   autoUpdater.allowPrerelease = policy.allowPrerelease;
   autoUpdater.autoDownload = true;
+}
+
+export function restartAndInstall(): void {
+  autoUpdater.quitAndInstall();
 }

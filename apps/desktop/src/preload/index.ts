@@ -255,8 +255,16 @@ const api = {
     get: () => call<SettingsSnapshot>('settings:get'),
     update: (patch: Partial<AppSettings>) => call<SettingsSnapshot>('settings:update', patch),
     checkForUpdates: () => call<UpdateStatus>('settings:checkForUpdates'),
+    onUpdateDownloaded: (cb: (version: string) => void) => {
+      const listener = (_e: unknown, version: string) => cb(version);
+      ipcRenderer.on('update-downloaded', listener);
+      return () => {
+        ipcRenderer.removeListener('update-downloaded', listener);
+      };
+    },
+    restartAndInstall: () => ipcRenderer.invoke('settings:restartAndInstall'),
   },
-} as const;
+} as any;
 
 export type DonkorApi = typeof api;
 export type { Result };

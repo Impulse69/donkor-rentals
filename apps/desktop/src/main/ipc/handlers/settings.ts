@@ -4,7 +4,7 @@ import { wrap } from '../envelope';
 import { getDb } from '../../db';
 import { configureCrashReporting, getCrashStatus } from '../../crash';
 import { getAppSettings, updateAppSettings } from '../../repositories/settings';
-import { checkForUpdates, getUpdateStatus, setUpdateChannel } from '../../updates';
+import { checkForUpdates, getUpdateStatus, setUpdateChannel, restartAndInstall } from '../../updates';
 
 const UpdateChannel = z.enum(['latest', 'beta']);
 
@@ -45,5 +45,10 @@ export function registerSettingsIpc(): void {
   ipcMain.handle(
     'settings:checkForUpdates',
     wrap('settings:checkForUpdates', z.void().optional(), () => checkForUpdates(getDb())),
+  );
+
+  ipcMain.handle(
+    'settings:restartAndInstall',
+    wrap('settings:restartAndInstall', z.void().optional(), () => restartAndInstall()),
   );
 }

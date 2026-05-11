@@ -14,6 +14,23 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
   const location = useLocation();
   const params = useParams() as Readonly<Record<string, string>>;
   const crumbs = useMemo(() => resolveCrumbs(location.pathname, params), [location.pathname, params]);
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (window.donkor?.settings?.onUpdateDownloaded) {
+      const unsubscribe = window.donkor.settings.onUpdateDownloaded((version: string) => {
+        setUpdateVersion(version);
+      });
+      return unsubscribe;
+    }
+    return undefined;
+  }, []);
+
+  function handleRestart() {
+    if (window.donkor?.settings?.restartAndInstall) {
+      void window.donkor.settings.restartAndInstall();
+    }
+  }
 
   const navByLabel: Record<string, RouteDef[]> = NAV_SECTIONS.reduce((acc, section) => {
     acc[section] = routes.filter((r) => r.nav && r.nav.section === section);
@@ -44,6 +61,36 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
           ))}
           <div style={{ flex: 1 }} />
         </nav>
+        {updateVersion && (
+          <div className="update-sidebar-badge" style={{
+            margin: '0 16px 16px 16px',
+            padding: '12px',
+            background: 'rgba(212, 163, 89, 0.1)',
+            border: '1px solid var(--gold-deep)',
+            borderRadius: '6px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}>
+            <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--ink)' }}>
+              ✨ Update v{updateVersion} downloaded!
+            </div>
+            <button onClick={handleRestart} style={{
+              background: 'var(--gold-deep)',
+              color: 'var(--paper)',
+              border: 'none',
+              padding: '6px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '11px',
+              textAlign: 'center',
+              width: '100%'
+            }}>
+              Restart &amp; Install
+            </button>
+          </div>
+        )}
         <Foot />
       </aside>
 
