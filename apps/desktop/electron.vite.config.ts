@@ -4,10 +4,19 @@ import { resolve } from 'node:path';
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({
+      exclude: [
+        '@supabase/supabase-js',
+        '@supabase/auth-js',
+        '@supabase/functions-js',
+        '@supabase/postgrest-js',
+        '@supabase/realtime-js',
+        '@supabase/storage-js'
+      ]
+    })],
     build: {
       rollupOptions: {
-        input: { index: resolve(__dirname, 'src/main/index.ts') },
+        input: { index: resolve(__dirname, 'src/main/index.ts') }
       },
     },
     resolve: {

@@ -1,6 +1,6 @@
 {
   "name": "donkor-rentals",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Desktop rental management software for Donkor & Sons (party supplies + hearses).",
   "engines": {
