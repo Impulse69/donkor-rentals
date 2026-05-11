@@ -4,6 +4,7 @@ import { useAsync } from '../../lib/useAsync';
 import { api } from '../../lib/api';
 import { paths } from '../../router/paths';
 import { formatDate, formatGhs } from '../../lib/format';
+import { printHtml } from '../../lib/print';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
 import { Spinner } from '../../components/Spinner';
@@ -73,15 +74,14 @@ export default function BookingDetail(): JSX.Element {
     }
   }
 
-  async function generate(kind: 'contract' | 'trip'): Promise<void> {
+  async function printContract(): Promise<void> {
     setDocBusy(true);
     try {
-      const doc = kind === 'contract'
-        ? await api.documents.contract(b.id)
-        : await api.documents.tripSheet(b.id);
-      toast.ok(`${doc.title} archived`);
+      const doc = await api.documents.contract(b.id);
+      printHtml(doc.html);
+      toast.ok(`${doc.title} sent to printer`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not generate document');
+      toast.error(err instanceof Error ? err.message : 'Could not generate contract');
     } finally {
       setDocBusy(false);
     }
@@ -111,8 +111,7 @@ export default function BookingDetail(): JSX.Element {
               {labelForTransition(b.status, t)}
             </Button>
           ))}
-          <Button loading={docBusy} onClick={() => { void generate('contract'); }}>Contract</Button>
-          <Button loading={docBusy} onClick={() => { void generate('trip'); }}>Trip sheet</Button>
+          <Button loading={docBusy} onClick={() => { void printContract(); }}>Print contract</Button>
           {(b.status === 'out' || b.status === 'returned') && (
             <Link to={`/returns/new/${b.id}`}><Button>Record return</Button></Link>
           )}

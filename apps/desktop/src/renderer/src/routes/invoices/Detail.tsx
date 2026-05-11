@@ -10,6 +10,7 @@ import {
   formatDate,
   formatDateTime,
 } from '../../lib/format';
+import { printHtml } from '../../lib/print';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
 import { Spinner } from '../../components/Spinner';
@@ -86,7 +87,8 @@ export default function InvoiceDetail(): JSX.Element {
     setDocBusy(true);
     try {
       const doc = await api.documents.invoice(inv.id);
-      toast.ok(`${doc.title} archived`);
+      printHtml(doc.html);
+      toast.ok(`${doc.title} sent to printer`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not generate invoice');
     } finally {
@@ -97,7 +99,8 @@ export default function InvoiceDetail(): JSX.Element {
   async function generateReceipt(paymentId: string): Promise<void> {
     try {
       const doc = await api.documents.receipt(paymentId);
-      toast.ok(`${doc.title} archived`);
+      printHtml(doc.html);
+      toast.ok(`${doc.title} sent to printer`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not generate receipt');
     }
@@ -130,7 +133,7 @@ export default function InvoiceDetail(): JSX.Element {
               {showPay ? 'Cancel payment' : '+ Record payment'}
             </Button>
           )}
-          <Button loading={docBusy} onClick={() => { void generateInvoice(); }}>Archive invoice</Button>
+          <Button loading={docBusy} onClick={() => { void generateInvoice(); }}>Print invoice</Button>
           {(inv.status === 'draft' || inv.status === 'issued') && (
             <Button variant="danger" loading={statusBusy} onClick={() => { void moveStatus('void'); }}>
               Void
@@ -229,7 +232,7 @@ export default function InvoiceDetail(): JSX.Element {
                       </td>
                       <td>
                         <Button size="sm" variant="ghost" onClick={() => { void generateReceipt(p.id); }}>
-                          Receipt
+                          Print receipt
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => { void onVoidPayment(p.id); }}>
                           Void
