@@ -16,6 +16,13 @@ export function dateInputToIso(date: string, time = '08:00'): string {
   return new Date(`${date}T${time}`).toISOString();
 }
 
+export function localTimeInput(iso: string): string {
+  const d = new Date(iso);
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
 /** Today as YYYY-MM-DD in local time. */
 export function todayInput(): string {
   return localDateInput(new Date().toISOString());

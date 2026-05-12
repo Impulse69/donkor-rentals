@@ -18,7 +18,7 @@ import {
   type Item,
   type ItemUnit,
 } from '@shared/schemas';
-import { dateInputToIso, localDateInput, daysCovered } from './helpers';
+import { dateInputToIso, localDateInput, localTimeInput, daysCovered } from './helpers';
 
 interface DraftLine {
   key: string;
@@ -50,7 +50,9 @@ export default function BookingForm(): JSX.Element {
   const [newCustomerEmail, setNewCustomerEmail] = useState('');
   const [initialStatus, setInitialStatus] = useState<BookingStatus>('reserved');
   const [startDate, setStartDate] = useState(localDateInput(today.toISOString()));
+  const [startTime, setStartTime] = useState('08:00');
   const [endDate, setEndDate] = useState(localDateInput(tomorrow.toISOString()));
+  const [endTime, setEndTime] = useState('18:00');
   const [pickup, setPickup] = useState('');
   const [dropoff, setDropoff] = useState('');
   const [driver, setDriver] = useState('');
@@ -66,7 +68,9 @@ export default function BookingForm(): JSX.Element {
     setRenterName(e.renter_name ?? e.customer_name);
     setInitialStatus(e.status);
     setStartDate(localDateInput(e.starts_at));
+    setStartTime(localTimeInput(e.starts_at));
     setEndDate(localDateInput(e.ends_at));
+    setEndTime(localTimeInput(e.ends_at));
     setPickup(e.pickup_location ?? '');
     setDropoff(e.dropoff_location ?? '');
     setDriver(e.driver_name ?? '');
@@ -80,8 +84,8 @@ export default function BookingForm(): JSX.Element {
     })));
   }, [editing, existing.status, existing.status === 'ok' ? existing.data?.id : null]);
 
-  const startsIso = useMemo(() => dateInputToIso(startDate, '08:00'), [startDate]);
-  const endsIso = useMemo(() => dateInputToIso(endDate, '18:00'), [endDate]);
+  const startsIso = useMemo(() => dateInputToIso(startDate, startTime), [startDate, startTime]);
+  const endsIso = useMemo(() => dateInputToIso(endDate, endTime), [endDate, endTime]);
   const days = daysCovered(startsIso, endsIso);
 
   const itemsById = useMemo(() => {
@@ -261,7 +265,9 @@ export default function BookingForm(): JSX.Element {
               <Input containerClass="full" label="Renter label" value={renterName} onChange={(e) => setRenterName(e.target.value)} required />
             )}
             <Input label="Pickup date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-            <Input label="Return date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} hint={`${days} day${days === 1 ? '' : 's'}`} />
+            <Input label="Pickup time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+            <Input label="Return date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            <Input label="Return time" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} hint={`${days} day${days === 1 ? '' : 's'}`} />
             {hasHearseLine && (
               <>
                 <Input label="Pickup location" value={pickup} onChange={(e) => setPickup(e.target.value)} />

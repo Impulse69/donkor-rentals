@@ -22,4 +22,4 @@ export function daysCovered(starts: string, ends: string): number {
 }
 
 // Date-input bridge helpers live in lib/dates so other domains can reuse them.
-export { localDateInput, dateInputToIso, todayInput } from '../../lib/dates';
+export { localDateInput, localTimeInput, dateInputToIso, todayInput } from '../../lib/dates';
