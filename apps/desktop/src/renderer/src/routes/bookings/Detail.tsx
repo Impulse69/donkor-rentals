@@ -156,6 +156,12 @@ export default function BookingDetail(): JSX.Element {
               <Button>Generate invoice</Button>
             </Link>
           )}
+          <Button
+            loading={docBusy}
+            onClick={() => { void printContract(); }}
+          >
+            Print contract
+          </Button>
           <Link to={paths.bookings.edit(b.id)}><Button>Edit</Button></Link>
           <Button variant="danger" onClick={() => { void onCancelDelete(); }}>Remove</Button>
         </div>

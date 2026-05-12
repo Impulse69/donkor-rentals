@@ -40,10 +40,12 @@ export default function CatalogForm(): JSX.Element {
 
   const existing = useAsync(() => (id ? api.catalog.get(id) : Promise.resolve(null)), [id]);
 
+  const existingData = existing.data;
+
   const initial: FormState = useMemo(() => {
     if (!editing) return blank;
-    if (existing.status === 'ok' && existing.data) {
-      const i = existing.data;
+    if (existing.status === 'ok' && existingData) {
+      const i = existingData;
       return {
         kind: i.kind,
         sku: i.sku,
@@ -56,7 +58,7 @@ export default function CatalogForm(): JSX.Element {
       };
     }
     return blank;
-  }, [editing, existing.status, existing.status === 'ok' ? existing.data?.id : null]);
+  }, [editing, existing.status, existingData]);
 
   const [state, setState] = useState<FormState>(initial);
   useEffect(() => setState(initial), [initial]);

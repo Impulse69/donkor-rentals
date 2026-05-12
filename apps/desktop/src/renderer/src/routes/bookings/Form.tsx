@@ -60,9 +60,12 @@ export default function BookingForm(): JSX.Element {
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [saving, setSaving] = useState(false);
 
+  const existingDataId = existing.status === 'ok' ? existing.data?.id : null;
+  const existingData = existing.data;
+
   useEffect(() => {
-    if (!editing || existing.status !== 'ok' || !existing.data) return;
-    const e = existing.data;
+    if (!editing || existing.status !== 'ok' || !existingData) return;
+    const e = existingData;
     setCustomerMode(e.customer_id ? 'saved' : 'walkin');
     setCustomerId(e.customer_id ?? '');
     setRenterName(e.renter_name ?? e.customer_name);
@@ -82,7 +85,7 @@ export default function BookingForm(): JSX.Element {
       quantity: l.quantity,
       daily_rate_pesewas: l.daily_rate_pesewas,
     })));
-  }, [editing, existing.status, existing.status === 'ok' ? existing.data?.id : null]);
+  }, [editing, existing.status, existingDataId, existingData]);
 
   const startsIso = useMemo(() => dateInputToIso(startDate, startTime), [startDate, startTime]);
   const endsIso = useMemo(() => dateInputToIso(endDate, endTime), [endDate, endTime]);
@@ -97,13 +100,12 @@ export default function BookingForm(): JSX.Element {
 
   const [conflicts, setConflicts] = useState<ConflictReport[] | null>(null);
   const [conflictBusy, setConflictBusy] = useState(false);
-  const linesSignature = useMemo(
-    () => lines.map((l) => `${l.item_id}|${l.item_unit_id ?? ''}|${l.quantity}`).join(','),
-    [lines],
-  );
+  const mappedLinesForConflicts = useMemo(() => {
+    return lines.map((l) => ({ item_id: l.item_id, item_unit_id: l.item_unit_id, quantity: l.quantity }));
+  }, [lines]);
 
   useEffect(() => {
-    if (lines.length === 0 || new Date(startsIso) >= new Date(endsIso)) {
+    if (mappedLinesForConflicts.length === 0 || new Date(startsIso) >= new Date(endsIso)) {
       setConflicts(null);
       setConflictBusy(false);
       return;
@@ -115,7 +117,7 @@ export default function BookingForm(): JSX.Element {
         starts_at: startsIso,
         ends_at: endsIso,
         ...(editing && id ? { excludeBookingId: id } : {}),
-        lines: lines.map((l) => ({ item_id: l.item_id, item_unit_id: l.item_unit_id, quantity: l.quantity })),
+        lines: mappedLinesForConflicts,
       })
         .then((r) => { if (!cancelled) setConflicts(r); })
         .catch(() => { if (!cancelled) setConflicts(null); })
@@ -125,7 +127,7 @@ export default function BookingForm(): JSX.Element {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [startsIso, endsIso, linesSignature, editing, id]);
+  }, [startsIso, endsIso, mappedLinesForConflicts, editing, id]);
 
   const hasBlockingConflict = (conflicts ?? []).some((r) => r.available < r.requested);
 

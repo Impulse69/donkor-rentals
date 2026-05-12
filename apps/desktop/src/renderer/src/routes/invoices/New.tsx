@@ -39,17 +39,20 @@ export default function NewInvoice(): JSX.Element {
   const [dueAt, setDueAt] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
+  const bookingDataId = booking.status === 'ok' ? booking.data?.id : null;
+  const bookingData = booking.data;
+
   // Default due date = booking end + 7 days when booking changes.
   useEffect(() => {
-    if (booking.status === 'ok' && booking.data) {
-      const d = new Date(booking.data.ends_at);
+    if (booking.status === 'ok' && bookingData) {
+      const d = new Date(bookingData.ends_at);
       d.setDate(d.getDate() + 7);
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
       setDueAt(`${y}-${m}-${day}`);
     }
-  }, [booking.status, booking.status === 'ok' ? booking.data?.id : null]);
+  }, [booking.status, bookingDataId, bookingData]);
 
   const preview = useMemo(() => {
     if (booking.status !== 'ok' || !booking.data) return null;
