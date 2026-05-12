@@ -1,7 +1,7 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAsync } from '../../lib/useAsync';
 import { api } from '../../lib/api';
-import { formatDate } from '../../lib/format';
+import { formatDate, formatDateTime } from '../../lib/format';
 import { paths } from '../../router/paths';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
@@ -105,7 +105,7 @@ function BookingsTable({ rows, onRowClick }: { rows: Row[]; onRowClick: (b: Row)
                 {b.notes && <div className="muted" style={{ fontSize: 12 }}>{truncate(b.notes, 70)}</div>}
               </td>
               <td>
-                <div className="mono" style={{ fontSize: 13 }}>{formatDate(b.starts_at)} → {formatDate(b.ends_at)}</div>
+                <div className="mono" style={{ fontSize: 13 }}>{formatDateTime(b.starts_at)} → {formatDateTime(b.ends_at)}</div>
               </td>
               <td className="num">{daysCovered(b.starts_at, b.ends_at)}</td>
               <td>{b.driver_name || <span className="faint">—</span>}</td>

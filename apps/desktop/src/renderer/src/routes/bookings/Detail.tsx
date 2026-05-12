@@ -24,6 +24,12 @@ export default function BookingDetail(): JSX.Element {
   const navigate = useNavigate();
   const toast = useToast();
   const booking = useAsync(() => api.bookings.get(id), [id]);
+  const invoices = useAsync(() => api.invoices.list({ bookingId: id }), [id]);
+  const firstInvoiceId = invoices.data?.[0]?.id;
+  const invoiceDetail = useAsync(
+    () => (firstInvoiceId ? api.invoices.get(firstInvoiceId) : Promise.resolve(null)),
+    [firstInvoiceId]
+  );
   const [busy, setBusy] = useState(false);
   const [docBusy, setDocBusy] = useState(false);
 
@@ -56,6 +62,7 @@ export default function BookingDetail(): JSX.Element {
       await api.bookings.transition(b.id, next);
       toast.ok(`Marked ${BOOKING_STATUS_LABELS[next].toLowerCase()}`);
       booking.refresh();
+      invoices.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not transition');
     } finally {
@@ -87,6 +94,19 @@ export default function BookingDetail(): JSX.Element {
     }
   }
 
+  async function printReceipt(paymentId: string): Promise<void> {
+    setDocBusy(true);
+    try {
+      const doc = await api.documents.receipt(paymentId);
+      printHtml(doc.html);
+      toast.ok(`${doc.title} sent to printer`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not generate receipt');
+    } finally {
+      setDocBusy(false);
+    }
+  }
+
   return (
     <div className="page fade-up" style={{ maxWidth: 1100 }}>
       <header className="page-head">
@@ -111,11 +131,31 @@ export default function BookingDetail(): JSX.Element {
               {labelForTransition(b.status, t)}
             </Button>
           ))}
-          <Button loading={docBusy} onClick={() => { void printContract(); }}>Print contract</Button>
-          {(b.status === 'out' || b.status === 'returned') && (
+          {b.status === 'out' && (
             <Link to={`/returns/new/${b.id}`}><Button>Record return</Button></Link>
           )}
-          <Link to={paths.invoices.fromBooking(b.id)}><Button>Generate invoice</Button></Link>
+          {invoices.data && invoices.data.length > 0 ? (
+            <>
+              <Link to={paths.invoices.detail(invoices.data[0].id)}>
+                <Button>View invoice</Button>
+              </Link>
+              {invoiceDetail.data?.payments && invoiceDetail.data.payments.length > 0 && (
+                <Button
+                  loading={docBusy}
+                  onClick={() => {
+                    const latestPayment = invoiceDetail.data.payments[invoiceDetail.data.payments.length - 1];
+                    void printReceipt(latestPayment.id);
+                  }}
+                >
+                  Print receipt
+                </Button>
+              )}
+            </>
+          ) : (
+            <Link to={paths.invoices.fromBooking(b.id)}>
+              <Button>Generate invoice</Button>
+            </Link>
+          )}
           <Link to={paths.bookings.edit(b.id)}><Button>Edit</Button></Link>
           <Button variant="danger" onClick={() => { void onCancelDelete(); }}>Remove</Button>
         </div>

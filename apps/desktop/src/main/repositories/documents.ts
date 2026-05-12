@@ -19,12 +19,39 @@ const DOC_COLS = `id, tenant_id, source_type, source_id, kind, title, storage_pa
 export async function generateContract(db: Database, tenantId: string, bookingId: string): Promise<ArchivedDocument> {
   const booking = readBookingBundle(db, tenantId, bookingId);
   const title = `Contract - ${booking.customer_name}`;
-  const html = layoutDocument(title, [
-    `<p><strong>Customer:</strong> ${escapeHtml(booking.customer_name)}</p>`,
-    `<p><strong>Rental period:</strong> ${escapeHtml(booking.starts_at)} to ${escapeHtml(booking.ends_at)}</p>`,
-    `<h2>Rental items</h2>${linesTable(booking.lines)}`,
-    `<p class="signature">Customer signature: ______________________________</p>`,
-  ]);
+  
+  const tableRows = booking.lines.map((l) => {
+    const itemAndUnit = l.unit_identifier
+      ? `${String(l.item_name)} · ${String(l.unit_identifier)}${l.plate ? ` (${String(l.plate)})` : ''}`
+      : String(l.item_name);
+    return [
+      itemAndUnit,
+      String(l.quantity),
+      `GHS ${(Number(l.daily_rate_pesewas) / 100).toFixed(2)}`,
+      `GHS ${(Number(l.daily_rate_pesewas) * Number(l.quantity) / 100).toFixed(2)}`
+    ];
+  });
+
+  const starts = new Date(booking.starts_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const ends = new Date(booking.ends_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  const html = renderHtmlDocument({
+    docType: 'CONTRACT',
+    docNumber: booking.id.slice(0, 8).toUpperCase(),
+    docDate: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+    customerName: booking.customer_name,
+    customerPhone: booking.customer_phone,
+    customerEmail: booking.customer_email,
+    additionalInfo: [
+      { label: 'Starts', value: starts },
+      { label: 'Ends', value: ends }
+    ],
+    tableHeaders: ['Item & Unit', 'Qty', 'Rate / Day', 'Total / Day'],
+    tableRows,
+    totalPesewas: booking.lines.reduce((sum, l) => sum + Number(l.daily_rate_pesewas) * Number(l.quantity), 0),
+    notes: booking.notes
+  });
+
   return archiveDocument(db, tenantId, 'booking', bookingId, 'contract', title, html);
 }
 
@@ -32,25 +59,75 @@ export async function generateTripSheet(db: Database, tenantId: string, bookingI
   const booking = readBookingBundle(db, tenantId, bookingId);
   const title = `Hearse trip sheet - ${booking.customer_name}`;
   const hearseLines = booking.lines.filter((line) => line['item_kind'] === 'hearse');
-  const html = layoutDocument(title, [
-    `<p><strong>Driver:</strong> ${escapeHtml(booking.driver_name ?? 'Unassigned')}</p>`,
-    `<p><strong>Pickup:</strong> ${escapeHtml(booking.pickup_location ?? 'Not set')}</p>`,
-    `<p><strong>Drop-off:</strong> ${escapeHtml(booking.dropoff_location ?? 'Not set')}</p>`,
-    `<h2>Vehicle log</h2>${linesTable(hearseLines.length > 0 ? hearseLines : booking.lines)}`,
-    `<p class="signature">Driver signature: ______________________________</p>`,
+  const activeLines = hearseLines.length > 0 ? hearseLines : booking.lines;
+
+  const tableRows = activeLines.map((l) => [
+    String(l.item_name),
+    l.unit_identifier ? String(l.unit_identifier) : 'Pool',
+    l.plate ? String(l.plate) : 'N/A',
+    String(l.odometer_start_km ?? '-'),
+    String(l.fuel_litres_start ?? '-')
   ]);
+
+  const html = renderHtmlDocument({
+    docType: 'TRIP SHEET',
+    docNumber: booking.id.slice(0, 8).toUpperCase(),
+    docDate: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+    customerName: booking.customer_name,
+    customerPhone: booking.customer_phone,
+    customerEmail: booking.customer_email,
+    additionalInfo: [
+      { label: 'Driver', value: booking.driver_name ?? 'Unassigned' },
+      { label: 'Pickup', value: booking.pickup_location ?? 'Not set' },
+      { label: 'Drop-off', value: booking.dropoff_location ?? 'Not set' }
+    ],
+    tableHeaders: ['Vehicle', 'Unit', 'Plate', 'Odometer Start', 'Fuel Start'],
+    tableRows,
+    totalPesewas: 0,
+    notes: booking.notes
+  });
+
   return archiveDocument(db, tenantId, 'booking', bookingId, 'trip_sheet', title, html);
 }
 
 export async function generateInvoiceDocument(db: Database, tenantId: string, invoiceId: string): Promise<ArchivedDocument> {
   const invoice = readInvoiceBundle(db, tenantId, invoiceId);
   const title = `Invoice ${invoice.number}`;
-  const html = layoutDocument(title, [
-    `<p><strong>Customer:</strong> ${escapeHtml(invoice.customer_name)}</p>`,
-    `<p><strong>Status:</strong> ${escapeHtml(invoice.status)}</p>`,
-    `<h2>Invoice lines</h2>${invoiceLinesTable(invoice.lines)}`,
-    `<p class="total"><strong>Total:</strong> ${formatPesewas(invoice.total_pesewas)}</p>`,
+
+  const tableRows = invoice.lines.map((l) => [
+    String(l.description),
+    String(l.quantity),
+    String(l.days),
+    `GHS ${(Number(l.unit_price_pesewas) / 100).toFixed(2)}`,
+    `GHS ${(Number(l.line_total_pesewas) / 100).toFixed(2)}`
   ]);
+
+  const html = renderHtmlDocument({
+    docType: 'INVOICE',
+    docNumber: invoice.number,
+    docDate: invoice.issued_at 
+      ? new Date(invoice.issued_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      : new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+    docStatus: invoice.status.toUpperCase(),
+    customerName: invoice.customer_name,
+    customerPhone: invoice.customer_phone,
+    customerEmail: invoice.customer_email,
+    additionalInfo: invoice.due_at ? [
+      { 
+        label: 'Due Date', 
+        value: new Date(invoice.due_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) 
+      }
+    ] : [],
+    tableHeaders: ['Description', 'Qty', 'Days', 'Unit Price', 'Amount'],
+    tableRows,
+    subtotalPesewas: invoice.subtotal_pesewas,
+    taxPesewas: invoice.tax_pesewas,
+    discountPesewas: invoice.discount_pesewas,
+    totalPesewas: invoice.total_pesewas,
+    payments: invoice.payments,
+    notes: invoice.notes
+  });
+
   return archiveDocument(db, tenantId, 'invoice', invoiceId, 'invoice', title, html);
 }
 
@@ -58,11 +135,12 @@ export async function generateReceipt(db: Database, tenantId: string, paymentId:
   const payment = db
     .prepare(
       `SELECT p.id, p.invoice_id, p.kind, p.amount_pesewas, p.method, p.reference, p.paid_at,
-              i.number, c.name AS customer_name
+              i.number, COALESCE(c.name, b.renter_name, 'Walk-in rental') AS customer_name,
+              c.phone AS customer_phone, c.email AS customer_email
        FROM payments p
        JOIN invoices i ON i.id = p.invoice_id
        JOIN bookings b ON b.id = i.booking_id
-       JOIN customers c ON c.id = b.customer_id
+       LEFT JOIN customers c ON c.id = b.customer_id
        WHERE p.id = @id AND p.tenant_id = @tenant_id AND p.deleted_at IS NULL`,
     )
     .get({ id: paymentId, tenant_id: tenantId }) as
@@ -76,17 +154,47 @@ export async function generateReceipt(db: Database, tenantId: string, paymentId:
         paid_at: string;
         number: string;
         customer_name: string;
+        customer_phone: string | null;
+        customer_email: string | null;
       }
     | undefined;
   if (!payment) throw new Error('Payment not found');
 
+  const invoice = readInvoiceBundle(db, tenantId, payment.invoice_id);
   const title = `Receipt - ${payment.number}`;
-  const html = layoutDocument(title, [
-    `<p><strong>Customer:</strong> ${escapeHtml(payment.customer_name)}</p>`,
-    `<p><strong>Payment:</strong> ${escapeHtml(payment.kind)} by ${escapeHtml(payment.method)}</p>`,
-    `<p><strong>Reference:</strong> ${escapeHtml(payment.reference ?? 'None')}</p>`,
-    `<p class="total"><strong>Amount:</strong> ${formatPesewas(payment.amount_pesewas)}</p>`,
+
+  const tableRows = invoice.lines.map((l) => [
+    String(l.description),
+    String(l.quantity),
+    String(l.days),
+    `GHS ${(Number(l.unit_price_pesewas) / 100).toFixed(2)}`,
+    `GHS ${(Number(l.line_total_pesewas) / 100).toFixed(2)}`
   ]);
+
+  const paymentDate = new Date(payment.paid_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  const html = renderHtmlDocument({
+    docType: 'RECEIPT',
+    docNumber: payment.number,
+    docDate: paymentDate,
+    docStatus: 'PAID',
+    customerName: payment.customer_name,
+    customerPhone: payment.customer_phone,
+    customerEmail: payment.customer_email,
+    additionalInfo: [
+      { label: 'Payment Method', value: payment.method.toUpperCase() },
+      { label: 'Reference', value: payment.reference || 'N/A' }
+    ],
+    tableHeaders: ['Description', 'Qty', 'Days', 'Unit Price', 'Amount'],
+    tableRows,
+    subtotalPesewas: invoice.subtotal_pesewas,
+    taxPesewas: invoice.tax_pesewas,
+    discountPesewas: invoice.discount_pesewas,
+    totalPesewas: invoice.total_pesewas,
+    payments: [{ amount_pesewas: payment.amount_pesewas, method: payment.method, paid_at: payment.paid_at }],
+    notes: invoice.notes
+  });
+
   return archiveDocument(db, tenantId, 'payment', paymentId, 'receipt', title, html);
 }
 
@@ -142,10 +250,11 @@ async function uploadDocument(path: string, html: string): Promise<string | null
 function readBookingBundle(db: Database, tenantId: string, bookingId: string) {
   const booking = db
     .prepare(
-      `SELECT b.id, b.starts_at, b.ends_at, b.pickup_location, b.dropoff_location, b.driver_name,
-              c.name AS customer_name
+      `SELECT b.id, b.starts_at, b.ends_at, b.pickup_location, b.dropoff_location, b.driver_name, b.notes,
+              COALESCE(c.name, b.renter_name, 'Walk-in rental') AS customer_name,
+              c.phone AS customer_phone, c.email AS customer_email
        FROM bookings b
-       JOIN customers c ON c.id = b.customer_id
+       LEFT JOIN customers c ON c.id = b.customer_id
        WHERE b.id = @id AND b.tenant_id = @tenant_id AND b.deleted_at IS NULL`,
     )
     .get({ id: bookingId, tenant_id: tenantId }) as
@@ -156,7 +265,10 @@ function readBookingBundle(db: Database, tenantId: string, bookingId: string) {
         pickup_location: string | null;
         dropoff_location: string | null;
         driver_name: string | null;
+        notes: string | null;
         customer_name: string;
+        customer_phone: string | null;
+        customer_email: string | null;
       }
     | undefined;
   if (!booking) throw new Error('Booking not found');
@@ -178,14 +290,33 @@ function readBookingBundle(db: Database, tenantId: string, bookingId: string) {
 function readInvoiceBundle(db: Database, tenantId: string, invoiceId: string) {
   const invoice = db
     .prepare(
-      `SELECT i.id, i.number, i.status, i.total_pesewas, c.name AS customer_name
+      `SELECT i.id, i.number, i.status, i.subtotal_pesewas, i.tax_pesewas, i.discount_pesewas, i.total_pesewas, i.issued_at, i.due_at, i.notes,
+              COALESCE(c.name, b.renter_name, 'Walk-in rental') AS customer_name,
+              c.phone AS customer_phone, c.email AS customer_email,
+              b.starts_at AS booking_starts_at, b.ends_at AS booking_ends_at
        FROM invoices i
        JOIN bookings b ON b.id = i.booking_id
-       JOIN customers c ON c.id = b.customer_id
+       LEFT JOIN customers c ON c.id = b.customer_id
        WHERE i.id = @id AND i.tenant_id = @tenant_id AND i.deleted_at IS NULL`,
     )
     .get({ id: invoiceId, tenant_id: tenantId }) as
-    | { id: string; number: string; status: string; total_pesewas: number; customer_name: string }
+    | {
+        id: string;
+        number: string;
+        status: string;
+        subtotal_pesewas: number;
+        tax_pesewas: number;
+        discount_pesewas: number;
+        total_pesewas: number;
+        issued_at: string | null;
+        due_at: string | null;
+        notes: string | null;
+        customer_name: string;
+        customer_phone: string | null;
+        customer_email: string | null;
+        booking_starts_at: string;
+        booking_ends_at: string;
+      }
     | undefined;
   if (!invoice) throw new Error('Invoice not found');
   const lines = db
@@ -196,53 +327,365 @@ function readInvoiceBundle(db: Database, tenantId: string, invoiceId: string) {
        ORDER BY sort_order ASC`,
     )
     .all({ id: invoiceId, tenant_id: tenantId }) as Array<Record<string, unknown>>;
-  return { ...invoice, lines };
+  
+  const payments = db
+    .prepare(
+      `SELECT amount_pesewas, method, paid_at FROM payments
+       WHERE invoice_id = @id AND tenant_id = @tenant_id AND deleted_at IS NULL
+       ORDER BY paid_at ASC`,
+    )
+    .all({ id: invoiceId, tenant_id: tenantId }) as Array<{ amount_pesewas: number; method: string; paid_at: string }>;
+
+  return { ...invoice, lines, payments };
 }
 
-function layoutDocument(title: string, sections: string[]): string {
+interface DocumentOptions {
+  docType: 'INVOICE' | 'RECEIPT' | 'CONTRACT' | 'TRIP SHEET';
+  docNumber: string;
+  docDate: string;
+  docStatus?: string;
+  customerName: string;
+  customerPhone?: string | null;
+  customerEmail?: string | null;
+  additionalInfo?: Array<{ label: string; value: string }>;
+  tableHeaders: string[];
+  tableRows: string[][];
+  subtotalPesewas?: number;
+  taxPesewas?: number;
+  discountPesewas?: number;
+  totalPesewas: number;
+  payments?: Array<{ amount_pesewas: number; method: string; paid_at: string }>;
+  notes?: string | null;
+}
+
+function renderHtmlDocument(options: DocumentOptions): string {
+  const escape = escapeHtml;
   return `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>${escapeHtml(title)}</title>
+  <title>${escape(options.docType)} - ${escape(options.docNumber)}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    body { font-family: Georgia, serif; color: #241b15; margin: 42px; }
-    header { border-bottom: 2px solid #b8892f; margin-bottom: 24px; padding-bottom: 12px; }
-    h1 { margin: 0; font-size: 30px; }
-    h2 { margin-top: 26px; font-size: 18px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-    th, td { border-bottom: 1px solid #ddd2bd; padding: 8px; text-align: left; }
-    th { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #725f4a; }
-    .total, .signature { margin-top: 28px; font-size: 18px; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1F2937;
+      margin: 0;
+      padding: 40px;
+      line-height: 1.5;
+      background: #ffffff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1px solid #E5E7EB;
+      padding-bottom: 24px;
+      margin-bottom: 30px;
+    }
+    .company-info h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: #111827;
+      margin: 0 0 4px 0;
+    }
+    .company-info p {
+      font-size: 13px;
+      color: #4B5563;
+      margin: 2px 0;
+    }
+    .doc-meta {
+      text-align: right;
+    }
+    .doc-meta .doc-type {
+      font-size: 40px;
+      font-weight: 800;
+      color: #E5E7EB;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+    .meta-table {
+      font-size: 13px;
+      border-collapse: collapse;
+      margin-left: auto;
+    }
+    .meta-table td {
+      padding: 4px 8px;
+      text-align: right;
+      border: none;
+    }
+    .meta-table td.label {
+      color: #6B7280;
+      font-weight: 500;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+    }
+    .meta-table td.value {
+      color: #111827;
+      font-weight: 600;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .status-badge.paid { background: #D1FAE5; color: #065F46; }
+    .status-badge.issued { background: #DBEAFE; color: #1E40AF; }
+    .status-badge.draft { background: #FEF3C7; color: #92400E; }
+    .status-badge.void { background: #FEE2E2; color: #991B1B; }
+    .status-badge.generic { background: #F3F4F6; color: #374151; }
+
+    .bill-to-section {
+      margin-bottom: 30px;
+    }
+    .bill-to-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #9CA3AF;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 8px;
+    }
+    .bill-to-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: #111827;
+      margin: 0 0 4px 0;
+    }
+    .bill-to-info {
+      font-size: 13px;
+      color: #4B5563;
+      margin: 2px 0;
+    }
+
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 30px;
+    }
+    .items-table th {
+      border-bottom: 1px solid #E5E7EB;
+      color: #9CA3AF;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 10px 12px;
+      text-align: left;
+    }
+    .items-table th.num { text-align: right; }
+    .items-table td {
+      border-bottom: 1px solid #F3F4F6;
+      padding: 12px;
+      font-size: 13px;
+      color: #374151;
+    }
+    .items-table td.item-name {
+      font-weight: 600;
+      color: #111827;
+    }
+    .items-table td.num { text-align: right; }
+
+    .footer-grid {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-top: 20px;
+    }
+    .footer-left {
+      width: 50%;
+    }
+    .footer-right {
+      width: 45%;
+    }
+    .notes-card {
+      background: #F9FAFB;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+    }
+    .notes-card .title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #6B7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+    .notes-card .body {
+      font-size: 12px;
+      color: #4B5563;
+      white-space: pre-wrap;
+    }
+    .signature-block {
+      margin-top: 40px;
+      border-top: 1px dashed #D1D5DB;
+      padding-top: 12px;
+      font-size: 13px;
+      color: #4B5563;
+    }
+    .totals-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .totals-table td {
+      padding: 6px 12px;
+      font-size: 13px;
+      color: #4B5563;
+      text-align: right;
+    }
+    .totals-table td.label {
+      text-align: left;
+      font-weight: 500;
+    }
+    .totals-table tr.grand-total td {
+      border-top: 1px solid #E5E7EB;
+      font-size: 16px;
+      font-weight: 700;
+      color: #111827;
+      padding-top: 12px;
+    }
+    .totals-table tr.green-total td {
+      color: #059669;
+      font-weight: 600;
+    }
+
+    @media print {
+      body { padding: 0; }
+      @page { margin: 1.5cm; }
+    }
   </style>
 </head>
 <body>
-  <header><h1>Donkor &amp; Sons</h1><div>${escapeHtml(title)}</div></header>
-  ${sections.join('\n')}
+  <div class="container">
+    <header>
+      <div class="company-info">
+        <h1>Donkor &amp; Sons</h1>
+        <p>Premium Equipment &amp; Hearse Services</p>
+        <p>Accra, Ghana</p>
+        <p>+233 20 000 0000 | info@donkorrentals.com</p>
+      </div>
+      <div class="doc-meta">
+        <div class="doc-type">${escape(options.docType)}</div>
+        <table class="meta-table">
+          <tr>
+            <td class="label">${escape(options.docType)} #</td>
+            <td class="value">${escape(options.docNumber)}</td>
+          </tr>
+          <tr>
+            <td class="label">Date</td>
+            <td class="value">${escape(options.docDate)}</td>
+          </tr>
+          ${options.docStatus ? `
+          <tr>
+            <td class="label">Status</td>
+            <td class="value">
+              <span class="status-badge ${options.docStatus.toLowerCase()}">${escape(options.docStatus)}</span>
+            </td>
+          </tr>
+          ` : ''}
+          ${(options.additionalInfo || []).map(info => `
+          <tr>
+            <td class="label">${escape(info.label)}</td>
+            <td class="value">${escape(info.value)}</td>
+          </tr>
+          `).join('')}
+        </table>
+      </div>
+    </header>
+
+    <div class="bill-to-section">
+      <div class="bill-to-title">Bill To</div>
+      <div class="bill-to-name">${escape(options.customerName)}</div>
+      ${options.customerPhone ? `<div class="bill-to-info">${escape(options.customerPhone)}</div>` : ''}
+      ${options.customerEmail ? `<div class="bill-to-info">${escape(options.customerEmail)}</div>` : ''}
+    </div>
+
+    <table class="items-table">
+      <thead>
+        <tr>
+          ${options.tableHeaders.map((h, i) => `<th class="${i > 0 ? 'num' : ''}">${escape(h)}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${options.tableRows.map(row => `
+        <tr>
+          ${row.map((cell, i) => `<td class="${i === 0 ? 'item-name' : 'num'}">${escape(cell)}</td>`).join('')}
+        </tr>
+        `).join('')}
+      </tbody>
+    </table>
+
+    <div class="footer-grid">
+      <div class="footer-left">
+        ${options.notes ? `
+        <div class="notes-card">
+          <div class="title">Notes</div>
+          <div class="body">${escape(options.notes)}</div>
+        </div>
+        ` : ''}
+        ${options.docType === 'CONTRACT' ? `
+        <div class="signature-block">
+          Customer Signature: ___________________________
+        </div>
+        ` : ''}
+        ${options.docType === 'TRIP SHEET' ? `
+        <div class="signature-block">
+          Driver Signature: ___________________________
+        </div>
+        ` : ''}
+      </div>
+      <div class="footer-right">
+        <table class="totals-table">
+          ${options.subtotalPesewas !== undefined ? `
+          <tr>
+            <td class="label">Subtotal</td>
+            <td>GHS ${(options.subtotalPesewas / 100).toFixed(2)}</td>
+          </tr>
+          ` : ''}
+          ${options.taxPesewas ? `
+          <tr>
+            <td class="label">Tax</td>
+            <td>GHS ${(options.taxPesewas / 100).toFixed(2)}</td>
+          </tr>
+          ` : ''}
+          ${options.discountPesewas ? `
+          <tr>
+            <td class="label">Discount</td>
+            <td>- GHS ${(options.discountPesewas / 100).toFixed(2)}</td>
+          </tr>
+          ` : ''}
+          ${options.docType !== 'TRIP SHEET' ? `
+          <tr class="grand-total">
+            <td class="label">${options.docType === 'CONTRACT' ? 'Total / Day' : 'Total Due'}</td>
+            <td>GHS ${(options.totalPesewas / 100).toFixed(2)}</td>
+          </tr>
+          ` : ''}
+          ${(options.payments || []).map(p => `
+          <tr class="green-total">
+            <td class="label">Paid via ${p.method.toUpperCase()}</td>
+            <td>GHS ${(p.amount_pesewas / 100).toFixed(2)}</td>
+          </tr>
+          `).join('')}
+        </table>
+      </div>
+    </div>
+  </div>
 </body>
 </html>`;
-}
-
-function linesTable(lines: Array<Record<string, unknown>>): string {
-  return `<table><thead><tr><th>Item</th><th>Unit</th><th>Qty</th><th>Rate</th><th>Odometer</th><th>Fuel</th></tr></thead><tbody>${lines
-    .map(
-      (line) =>
-        `<tr><td>${escapeHtml(String(line['item_name'] ?? 'Item'))}</td><td>${escapeHtml(String(line['unit_identifier'] ?? line['plate'] ?? 'Pool'))}</td><td>${line['quantity']}</td><td>${formatPesewas(Number(line['daily_rate_pesewas'] ?? 0))}</td><td>${escapeHtml(String(line['odometer_start_km'] ?? '-'))} / ${escapeHtml(String(line['odometer_end_km'] ?? '-'))}</td><td>${escapeHtml(String(line['fuel_litres_start'] ?? '-'))} / ${escapeHtml(String(line['fuel_litres_end'] ?? '-'))}</td></tr>`,
-    )
-    .join('')}</tbody></table>`;
-}
-
-function invoiceLinesTable(lines: Array<Record<string, unknown>>): string {
-  return `<table><thead><tr><th>Description</th><th>Qty</th><th>Days</th><th>Unit</th><th>Total</th></tr></thead><tbody>${lines
-    .map(
-      (line) =>
-        `<tr><td>${escapeHtml(String(line['description'] ?? 'Line'))}</td><td>${line['quantity']}</td><td>${line['days']}</td><td>${formatPesewas(Number(line['unit_price_pesewas'] ?? 0))}</td><td>${formatPesewas(Number(line['line_total_pesewas'] ?? 0))}</td></tr>`,
-    )
-    .join('')}</tbody></table>`;
-}
-
-function formatPesewas(amount: number): string {
-  return `GHS ${(amount / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function escapeHtml(value: string): string {

@@ -11,7 +11,8 @@ export default defineConfig({
         '@supabase/functions-js',
         '@supabase/postgrest-js',
         '@supabase/realtime-js',
-        '@supabase/storage-js'
+        '@supabase/storage-js',
+        'electron-updater'
       ]
     })],
     build: {

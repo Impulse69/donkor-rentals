@@ -135,12 +135,12 @@ export function getTopCustomers(db: Database, tenantId: string, limit = 10): Top
 export function getTripLog(db: Database, tenantId: string, limit = 50): TripLogRow[] {
   return db
     .prepare(
-      `SELECT b.id AS booking_id, c.name AS customer_name, b.starts_at, b.ends_at,
+      `SELECT b.id AS booking_id, COALESCE(c.name, b.renter_name, 'Walk-in rental') AS customer_name, b.starts_at, b.ends_at,
               b.driver_name, b.pickup_location, b.dropoff_location,
               i.name AS item_name, u.plate, bl.odometer_start_km, bl.odometer_end_km
        FROM booking_lines bl
        JOIN bookings b ON b.id = bl.booking_id
-       JOIN customers c ON c.id = b.customer_id
+       LEFT JOIN customers c ON c.id = b.customer_id
        JOIN items i ON i.id = bl.item_id
        LEFT JOIN item_units u ON u.id = bl.item_unit_id
        WHERE bl.tenant_id = @tenant_id

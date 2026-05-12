@@ -57,6 +57,15 @@ export default function ReturnForm(): JSX.Element {
   if (!booking.data) {
     return <EmptyState title="Booking not found" actions={<Link to="/bookings"><Button>Back to bookings</Button></Link>} />;
   }
+  if (booking.data.status === 'returned') {
+    return (
+      <EmptyState
+        title="Return already recorded"
+        description="A return has already been recorded for this booking."
+        actions={<Link to="/bookings"><Button>Back to bookings</Button></Link>}
+      />
+    );
+  }
 
   const totalCharges = booking.data.lines.reduce((sum, line) => sum + parseCedisToPesewas(mergedLines[line.id]?.charge ?? '0'), 0);
   const depositPesewas = parseCedisToPesewas(deposit);

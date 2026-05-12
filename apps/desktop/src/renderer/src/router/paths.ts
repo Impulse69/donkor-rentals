@@ -21,7 +21,7 @@ export const paths = {
   customers: {
     list: '/customers',
     new: '/customers/new',
-    detail: (id: string) => `/customers/${id}`,
+    detail: (id: string | null) => `/customers/${id ?? ''}`,
     edit: (id: string) => `/customers/${id}/edit`,
   },
   bookings: {

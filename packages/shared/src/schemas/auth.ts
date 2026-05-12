@@ -43,12 +43,20 @@ export const FirstRunInput = z.object({
   shop_phone: z.string().max(80).nullable().optional(),
   owner_name: z.string().min(1).max(120),
   owner_email: z.string().email(),
-  password: z.string().min(8).optional(),
+  password: z.string().min(8),
+  role: UserRole.optional(),
 });
 
 export const SignInInput = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+});
+
+export const LocalUserCreateInput = z.object({
+  name: z.string().min(1).max(120),
+  email: z.string().email(),
+  password: z.string().min(8),
+  role: UserRole,
 });
 
 export type UserRole = z.infer<typeof UserRole>;
@@ -57,3 +65,4 @@ export type LocalUser = z.infer<typeof LocalUser>;
 export type AuthSession = z.infer<typeof AuthSession>;
 export type FirstRunInput = z.infer<typeof FirstRunInput>;
 export type SignInInput = z.infer<typeof SignInInput>;
+export type LocalUserCreateInput = z.infer<typeof LocalUserCreateInput>;

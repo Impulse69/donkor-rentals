@@ -64,7 +64,7 @@ export function listBookings(
     sql += ' AND (c.name LIKE @q OR b.driver_name LIKE @q OR b.notes LIKE @q)';
     params.q = `%${filter.search}%`;
   }
-  sql += ' ORDER BY b.starts_at ASC, b.created_at DESC';
+  sql += ' ORDER BY b.created_at DESC';
   return db.prepare(sql).all(params) as Array<Booking & { customer_name: string }>;
 }
 

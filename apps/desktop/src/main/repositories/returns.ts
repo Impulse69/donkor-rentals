@@ -78,6 +78,11 @@ export function createReturn(db: Database, tenantId: string, input: ReturnCreate
     .get({ id: input.booking_id, tenant_id: tenantId }) as { id: string } | undefined;
   if (!booking) throw new Error('createReturn: booking not found');
 
+  const existing = db
+    .prepare(`SELECT id FROM returns WHERE booking_id = @booking_id AND tenant_id = @tenant_id AND deleted_at IS NULL`)
+    .get({ booking_id: input.booking_id, tenant_id: tenantId });
+  if (existing) throw new Error('A return has already been recorded for this booking.');
+
   const reconciliation = reconcileDeposit({
     deposit_pesewas: input.deposit_pesewas,
     charges: input.lines.map((line) => ({

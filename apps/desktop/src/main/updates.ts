@@ -11,11 +11,15 @@ export interface UpdateStatus {
   checking: boolean;
   lastCheckAt: string | null;
   lastMessage: string | null;
+  downloadPercent: number | null;
+  downloadedVersion: string | null;
 }
 
 let checking = false;
 let lastCheckAt: string | null = null;
 let lastMessage: string | null = null;
+let downloadPercent: number | null = null;
+let downloadedVersion: string | null = null;
 let updateTimer: NodeJS.Timeout | null = null;
 
 export function configureUpdates(db: Database): void {
@@ -24,11 +28,21 @@ export function configureUpdates(db: Database): void {
 
   autoUpdater.on('checking-for-update', () => {
     checking = true;
+    downloadPercent = null;
     lastMessage = 'Checking for updates';
   });
   autoUpdater.on('update-available', (info) => {
-    checking = false;
+    checking = true;
+    downloadPercent = 0;
     lastMessage = `Update available: ${info.version}`;
+  });
+  autoUpdater.on('download-progress', (progress) => {
+    checking = true;
+    downloadPercent = Math.max(0, Math.min(100, progress.percent));
+    lastMessage = `Downloading update: ${Math.round(downloadPercent)}%`;
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('update-progress', downloadPercent);
+    }
   });
   autoUpdater.on('update-not-available', () => {
     checking = false;
@@ -40,6 +54,8 @@ export function configureUpdates(db: Database): void {
   });
   autoUpdater.on('update-downloaded', (info) => {
     checking = false;
+    downloadPercent = 100;
+    downloadedVersion = info.version;
     lastMessage = `Update downloaded: ${info.version}`;
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send('update-downloaded', info.version);
@@ -77,6 +93,8 @@ export function getUpdateStatus(db: Database): UpdateStatus {
     checking,
     lastCheckAt,
     lastMessage,
+    downloadPercent,
+    downloadedVersion,
   };
 }
 
