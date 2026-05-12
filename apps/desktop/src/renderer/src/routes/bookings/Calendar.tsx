@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAsync } from '../../lib/useAsync';
 import { api } from '../../lib/api';
@@ -22,8 +22,9 @@ export default function BookingsCalendar(): JSX.Element {
   const cursor = parseMonthKey(month);
 
   const window = useMemo(() => {
-    const start = startOfCalendarMonth(cursor);
-    const end = endOfCalendarMonth(cursor);
+    const cursorDate = parseMonthKey(month);
+    const start = startOfCalendarMonth(cursorDate);
+    const end = endOfCalendarMonth(cursorDate);
     return { start, end };
   }, [month]);
 

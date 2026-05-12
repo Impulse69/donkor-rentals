@@ -59,7 +59,7 @@ export function listInvoices(
   const params: Record<string, unknown> = { tenant_id: tenantId };
   let sql = `
     SELECT ${INVOICE_COLS.split(',').map((c) => `i.${c.trim()}`).join(', ')},
-           c.name AS customer_name,
+           COALESCE(c.name, b.renter_name, 'Walk-in rental') AS customer_name,
            COALESCE((
              SELECT SUM(CASE WHEN p.kind = 'refund' THEN -p.amount_pesewas ELSE p.amount_pesewas END)
              FROM payments p
@@ -67,7 +67,7 @@ export function listInvoices(
            ), 0) AS amount_paid_pesewas
     FROM invoices i
     JOIN bookings  b ON b.id = i.booking_id
-    JOIN customers c ON c.id = b.customer_id
+    LEFT JOIN customers c ON c.id = b.customer_id
     WHERE i.tenant_id = @tenant_id`;
   if (!filter.includeDeleted) sql += ' AND i.deleted_at IS NULL';
   if (filter.status) {
@@ -79,7 +79,7 @@ export function listInvoices(
     params.booking_id = filter.bookingId;
   }
   if (filter.search) {
-    sql += ' AND (i.number LIKE @q OR c.name LIKE @q)';
+    sql += " AND (i.number LIKE @q OR COALESCE(c.name, b.renter_name, 'Walk-in rental') LIKE @q)";
     params.q = `%${filter.search}%`;
   }
   sql += ' ORDER BY i.created_at DESC';
@@ -95,12 +95,12 @@ export function getInvoice(
   const row = db
     .prepare(
       `SELECT ${INVOICE_COLS.split(',').map((c) => `i.${c.trim()}`).join(', ')},
-              c.name AS customer_name,
+              COALESCE(c.name, b.renter_name, 'Walk-in rental') AS customer_name,
               b.starts_at AS booking_starts_at,
               b.ends_at   AS booking_ends_at
        FROM invoices i
        JOIN bookings  b ON b.id = i.booking_id
-       JOIN customers c ON c.id = b.customer_id
+       LEFT JOIN customers c ON c.id = b.customer_id
        WHERE i.id = @id AND i.tenant_id = @tenant_id`,
     )
     .get({ id, tenant_id: tenantId }) as
@@ -153,7 +153,7 @@ export function createInvoiceFromBooking(
        WHERE id = @id AND tenant_id = @tenant_id AND deleted_at IS NULL`,
     )
     .get({ id: input.booking_id, tenant_id: tenantId }) as
-    | { id: string; starts_at: string; ends_at: string; customer_id: string }
+    | { id: string; starts_at: string; ends_at: string; customer_id: string | null }
     | undefined;
   if (!booking) throw new Error('createInvoiceFromBooking: booking not found');
 

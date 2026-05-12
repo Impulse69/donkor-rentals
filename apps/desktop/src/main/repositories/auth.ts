@@ -1,6 +1,7 @@
 import type { Database } from 'better-sqlite3';
+import { pbkdf2Sync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { v4 as uuidv4 } from 'uuid';
-import type { AuthSession, FirstRunInput, LocalUser, ShopProfile, UserRole } from '@shared/schemas';
+import type { AuthSession, FirstRunInput, LocalUser, LocalUserCreateInput, ShopProfile, UserRole } from '@shared/schemas';
 import { ensureBootstrapTenant } from '../db';
 import { getSupabaseClient, isSupabaseConfigured } from '../supabase/client';
 
@@ -9,6 +10,21 @@ const SHOP_COLS = `id, name, currency, locale, address, phone, logo_path, create
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function passwordHash(password: string): string {
+  const salt = randomBytes(16).toString('base64url');
+  const digest = pbkdf2Sync(password, salt, 120_000, 32, 'sha256').toString('base64url');
+  return `pbkdf2_sha256$120000$${salt}$${digest}`;
+}
+
+function verifyPassword(password: string, stored: string | null | undefined): boolean {
+  if (!stored) return false;
+  const [scheme, iterRaw, salt, digest] = stored.split('$');
+  if (scheme !== 'pbkdf2_sha256' || !iterRaw || !salt || !digest) return false;
+  const expected = Buffer.from(digest, 'base64url');
+  const actual = pbkdf2Sync(password, salt, Number(iterRaw), expected.length, 'sha256');
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
 export function getSession(db: Database): AuthSession | null {
@@ -39,6 +55,7 @@ export async function completeFirstRun(db: Database, input: FirstRunInput): Prom
   const tenantId = ensureBootstrapTenant(db);
   const userId = uuidv4();
   const now = nowIso();
+  const hash = passwordHash(input.password);
 
   const tx = db.transaction(() => {
     db.prepare(
@@ -53,12 +70,13 @@ export async function completeFirstRun(db: Database, input: FirstRunInput): Prom
     });
 
     db.prepare(
-      `INSERT INTO app_users (${USER_COLS})
-       VALUES (@id, @tenant_id, @email, @name, 'owner', @created_at, @updated_at, NULL)
+      `INSERT INTO app_users (${USER_COLS}, password_hash)
+       VALUES (@id, @tenant_id, @email, @name, 'owner', @created_at, @updated_at, NULL, @password_hash)
        ON CONFLICT(email) DO UPDATE SET
          name = excluded.name,
          role = 'owner',
          tenant_id = excluded.tenant_id,
+         password_hash = excluded.password_hash,
          updated_at = excluded.updated_at,
          deleted_at = NULL`,
     ).run({
@@ -66,6 +84,7 @@ export async function completeFirstRun(db: Database, input: FirstRunInput): Prom
       tenant_id: tenantId,
       email: input.owner_email.toLowerCase(),
       name: input.owner_name,
+      password_hash: hash,
       created_at: now,
       updated_at: now,
     });
@@ -87,6 +106,35 @@ export async function completeFirstRun(db: Database, input: FirstRunInput): Prom
   return session;
 }
 
+export function createLocalUser(db: Database, input: LocalUserCreateInput): LocalUser {
+  requireRole(db, ['owner', 'manager']);
+  const tenantId = ensureBootstrapTenant(db);
+  const id = uuidv4();
+  const now = nowIso();
+  db.prepare(
+    `INSERT INTO app_users (${USER_COLS}, password_hash)
+     VALUES (@id, @tenant_id, @email, @name, @role, @created_at, @updated_at, NULL, @password_hash)
+     ON CONFLICT(email) DO UPDATE SET
+       name = excluded.name,
+       role = excluded.role,
+       tenant_id = excluded.tenant_id,
+       password_hash = excluded.password_hash,
+       updated_at = excluded.updated_at,
+       deleted_at = NULL`,
+  ).run({
+    id,
+    tenant_id: tenantId,
+    email: input.email.toLowerCase(),
+    name: input.name,
+    role: input.role,
+    password_hash: passwordHash(input.password),
+    created_at: now,
+    updated_at: now,
+  });
+  return db.prepare(`SELECT ${USER_COLS} FROM app_users WHERE email = @email`)
+    .get({ email: input.email.toLowerCase() }) as LocalUser;
+}
+
 export async function signIn(db: Database, email: string, password: string): Promise<AuthSession> {
   const client = getSupabaseClient();
   if (client) {
@@ -95,10 +143,13 @@ export async function signIn(db: Database, email: string, password: string): Pro
   }
 
   const user = db
-    .prepare(`SELECT ${USER_COLS} FROM app_users WHERE email = @email AND deleted_at IS NULL`)
+    .prepare(`SELECT ${USER_COLS}, password_hash FROM app_users WHERE email = @email AND deleted_at IS NULL`)
     .get({ email: email.toLowerCase() }) as LocalUser | undefined;
   if (!user) {
     throw new Error(client ? 'Supabase sign-in succeeded but no local profile exists' : 'No local user found for that email');
+  }
+  if (!client && !verifyPassword(password, (user as LocalUser & { password_hash?: string | null }).password_hash)) {
+    throw new Error('Invalid email or password');
   }
 
   db.prepare(
@@ -109,6 +160,11 @@ export async function signIn(db: Database, email: string, password: string): Pro
   const session = getSession(db);
   if (!session) throw new Error('Sign-in completed but no session was created');
   return session;
+}
+
+export function hasLocalUsers(db: Database): boolean {
+  const userCount = db.prepare(`SELECT COUNT(*) AS n FROM app_users WHERE deleted_at IS NULL`).get() as { n: number };
+  return userCount.n > 0;
 }
 
 export async function signOut(db: Database): Promise<void> {

@@ -8,6 +8,11 @@ files:
   - out/**/*
   - package.json
   - "!**/*.{md,map,ts}"
+extraResources:
+  - from: ../../packages/db/sqlite/migrations
+    to: migrations
+    filter:
+      - "**/*.sql"
 asar: true
 win:
   target:

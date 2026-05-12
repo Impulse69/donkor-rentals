@@ -81,6 +81,9 @@ export const api = {
     getSession: () => unwrap(window.donkor.auth.getSession()),
     completeFirstRun: (input: Parameters<typeof window.donkor.auth.completeFirstRun>[0]) =>
       unwrap(window.donkor.auth.completeFirstRun(input)),
+    hasUsers: () => unwrap(window.donkor.auth.hasUsers()),
+    createUser: (input: Parameters<typeof window.donkor.auth.createUser>[0]) =>
+      unwrap(window.donkor.auth.createUser(input)),
     signIn: (input: Parameters<typeof window.donkor.auth.signIn>[0]) =>
       unwrap(window.donkor.auth.signIn(input)),
     signOut: () => unwrap(window.donkor.auth.signOut()),
@@ -123,5 +126,8 @@ export const api = {
     update: (patch: Parameters<typeof window.donkor.settings.update>[0]) =>
       unwrap(window.donkor.settings.update(patch)),
     checkForUpdates: () => unwrap(window.donkor.settings.checkForUpdates()),
+    onUpdateProgress: window.donkor.settings.onUpdateProgress,
+    onUpdateDownloaded: window.donkor.settings.onUpdateDownloaded,
+    restartAndInstall: () => unwrap(window.donkor.settings.restartAndInstall()),
   },
 };

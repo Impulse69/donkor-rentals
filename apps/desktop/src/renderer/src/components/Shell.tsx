@@ -249,29 +249,6 @@ function UserChip(): JSX.Element {
   );
 }
 
-function LegacySyncPill(): JSX.Element {
-  // Phase 4 will replace this with the real sync engine status. For Phase 1 we
-  // surface "local-only" so staff know data is on this machine.
-  return (
-    <span className="sync-pill" title="Phase 1 — local only. Cloud sync in Phase 4.">
-      <span className="dot" />
-      Local
-    </span>
-  );
-}
-
-function LegacyUserChip(): JSX.Element {
-  return (
-    <span className="user-chip" title="Phase 4 enables Supabase auth and roles">
-      <Avatar name="Donkor" size={26} />
-      <span>Donkor</span>
-    </span>
-  );
-}
-
-void LegacySyncPill;
-void LegacyUserChip;
-
 export function PageLoader(): JSX.Element {
   return (
     <div className="row" style={{ justifyContent: 'center', padding: '60px 0', color: 'var(--ink-mute)' }}>

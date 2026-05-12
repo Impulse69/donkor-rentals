@@ -47,16 +47,31 @@ function applyMigrations(database: DB): void {
     if (seen.has(id)) continue;
     const sql = readFileSync(join(dir, file), 'utf8');
     log.info(`applying migration ${id}`);
+    database.pragma('foreign_keys = OFF');
     database.exec('BEGIN');
     try {
       database.exec(sql);
       insert.run(id, new Date().toISOString());
       database.exec('COMMIT');
+      database.pragma('foreign_keys = ON');
     } catch (err) {
       database.exec('ROLLBACK');
+      database.pragma('foreign_keys = ON');
       log.error(`migration ${id} failed`, err);
       throw err;
     }
+  }
+}
+
+function ensureRuntimeColumns(database: DB): void {
+  const userColumns = new Set(
+    database
+      .prepare('PRAGMA table_info(app_users)')
+      .all()
+      .map((row) => (row as { name: string }).name),
+  );
+  if (userColumns.size > 0 && !userColumns.has('password_hash')) {
+    database.exec('ALTER TABLE app_users ADD COLUMN password_hash TEXT');
   }
 }
 
@@ -69,6 +84,7 @@ export function openDb(): DB {
   database.pragma('foreign_keys = ON');
   database.pragma('synchronous = NORMAL');
   applyMigrations(database);
+  ensureRuntimeColumns(database);
   db = database;
   return db;
 }

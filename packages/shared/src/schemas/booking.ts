@@ -16,7 +16,7 @@ export const BOOKING_STATUS_TRANSITIONS: Record<
   z.infer<typeof BookingStatus>,
   ReadonlyArray<z.infer<typeof BookingStatus>>
 > = {
-  quote: ['reserved', 'cancelled'],
+  quote: ['reserved', 'out', 'cancelled'],
   reserved: ['out', 'cancelled'],
   out: ['returned'],
   returned: [],
@@ -26,7 +26,8 @@ export const BOOKING_STATUS_TRANSITIONS: Record<
 export const Booking = z.object({
   id: Uuid,
   tenant_id: Uuid,
-  customer_id: Uuid,
+  customer_id: Uuid.nullable(),
+  renter_name: z.string().min(1).max(200).nullable(),
   status: BookingStatus,
   starts_at: IsoDateTime,
   ends_at: IsoDateTime,

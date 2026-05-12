@@ -97,12 +97,15 @@ export default function InvoiceDetail(): JSX.Element {
   }
 
   async function generateReceipt(paymentId: string): Promise<void> {
+    setDocBusy(true);
     try {
       const doc = await api.documents.receipt(paymentId);
       printHtml(doc.html);
       toast.ok(`${doc.title} sent to printer`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not generate receipt');
+    } finally {
+      setDocBusy(false);
     }
   }
 
@@ -133,7 +136,14 @@ export default function InvoiceDetail(): JSX.Element {
               {showPay ? 'Cancel payment' : '+ Record payment'}
             </Button>
           )}
-          <Button loading={docBusy} onClick={() => { void generateInvoice(); }}>Print invoice</Button>
+          {inv.status === 'paid' && inv.payments.length > 0 ? (
+            <Button loading={docBusy} onClick={() => {
+              const latestPayment = inv.payments[inv.payments.length - 1];
+              void generateReceipt(latestPayment.id);
+            }}>Print receipt</Button>
+          ) : (
+            <Button loading={docBusy} onClick={() => { void generateInvoice(); }}>Print invoice</Button>
+          )}
           {(inv.status === 'draft' || inv.status === 'issued') && (
             <Button variant="danger" loading={statusBusy} onClick={() => { void moveStatus('void'); }}>
               Void

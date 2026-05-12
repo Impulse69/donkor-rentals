@@ -28,6 +28,8 @@ import type {
   PaymentCreateInput,
   AuthSession,
   FirstRunInput,
+  LocalUser,
+  LocalUserCreateInput,
   SignInInput,
   SyncStatus,
   SyncConflict,
@@ -132,6 +134,8 @@ interface UpdateStatus {
   checking: boolean;
   lastCheckAt: string | null;
   lastMessage: string | null;
+  downloadPercent: number | null;
+  downloadedVersion: string | null;
 }
 interface CrashStatus {
   enabled: boolean;
@@ -210,6 +214,8 @@ const api = {
   auth: {
     getSession: () => call<AuthSession | null>('auth:getSession'),
     completeFirstRun: (input: FirstRunInput) => call<AuthSession>('auth:firstRun', input),
+    hasUsers: () => call<boolean>('auth:hasUsers'),
+    createUser: (input: LocalUserCreateInput) => call<LocalUser>('auth:createUser', input),
     signIn: (input: SignInInput) => call<AuthSession>('auth:signIn', input),
     signOut: () => call<void>('auth:signOut'),
   },
@@ -239,6 +245,7 @@ const api = {
     receipt: (paymentId: string) => call<ArchivedDocument>('documents:receipt', { paymentId }),
     list: (sourceType: ArchivedDocument['source_type'], sourceId: string) =>
       call<ArchivedDocument[]>('documents:list', { sourceType, sourceId }),
+    printExternal: (html: string) => call<boolean>('documents:printExternal', { html }),
   },
 
   reports: {
@@ -255,16 +262,23 @@ const api = {
     get: () => call<SettingsSnapshot>('settings:get'),
     update: (patch: Partial<AppSettings>) => call<SettingsSnapshot>('settings:update', patch),
     checkForUpdates: () => call<UpdateStatus>('settings:checkForUpdates'),
-    onUpdateDownloaded: (cb: (version: string) => void) => {
-      const listener = (_e: unknown, version: string) => cb(version);
+    onUpdateProgress: (cb: (percent: number) => void): (() => void) => {
+      const listener = (_e: unknown, percent: number): void => cb(percent);
+      ipcRenderer.on('update-progress', listener);
+      return () => {
+        ipcRenderer.removeListener('update-progress', listener);
+      };
+    },
+    onUpdateDownloaded: (cb: (version: string) => void): (() => void) => {
+      const listener = (_e: unknown, version: string): void => cb(version);
       ipcRenderer.on('update-downloaded', listener);
       return () => {
         ipcRenderer.removeListener('update-downloaded', listener);
       };
     },
-    restartAndInstall: () => ipcRenderer.invoke('settings:restartAndInstall'),
+    restartAndInstall: () => call<void>('settings:restartAndInstall'),
   },
-} as any;
+} as const;
 
 export type DonkorApi = typeof api;
 export type { Result };

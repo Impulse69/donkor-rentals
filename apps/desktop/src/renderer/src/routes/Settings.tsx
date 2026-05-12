@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { UserRole } from '@shared/schemas';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 import { Button } from '../components/Button';
@@ -7,6 +8,12 @@ import { Alert } from '../components/Alert';
 import { Spinner } from '../components/Spinner';
 import { KV } from '../components/KV';
 import { useToast } from '../components/Toast';
+
+const ROLE_OPTIONS: Array<{ value: UserRole; label: string }> = [
+  { value: 'staff', label: 'Staff' },
+  { value: 'manager', label: 'Manager' },
+  { value: 'owner', label: 'Owner' },
+];
 
 export default function Settings(): JSX.Element {
   const session = useAsync(() => api.auth.getSession(), []);
@@ -51,6 +58,30 @@ function ActiveSettings({
   const [syncing, setSyncing] = useState(false);
   const appSettings = useAsync(() => api.settings.get(), []);
   const [checking, setChecking] = useState(false);
+  const [downloadPercent, setDownloadPercent] = useState<number | null>(null);
+  const [downloadedVersion, setDownloadedVersion] = useState<string | null>(null);
+
+  // User creation form states
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserConfirm, setNewUserConfirm] = useState('');
+  const [newUserRole, setNewUserRole] = useState<UserRole>('staff');
+  const [creatingUser, setCreatingUser] = useState(false);
+
+  useEffect(() => {
+    const offProgress = api.settings.onUpdateProgress((percent) => setDownloadPercent(percent));
+    const offDownloaded = api.settings.onUpdateDownloaded((version) => {
+      setDownloadPercent(100);
+      setDownloadedVersion(version);
+      appSettings.refresh();
+    });
+    return () => {
+      offProgress();
+      offDownloaded();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function drain(): Promise<void> {
     setSyncing(true);
@@ -93,6 +124,8 @@ function ActiveSettings({
     setChecking(true);
     try {
       const status = await api.settings.checkForUpdates();
+      setDownloadPercent(status.downloadPercent);
+      setDownloadedVersion(status.downloadedVersion);
       toast.ok(status.lastMessage ?? 'Update check finished');
       appSettings.refresh();
     } catch (err) {
@@ -102,7 +135,44 @@ function ActiveSettings({
     }
   }
 
+  async function restartAndInstall(): Promise<void> {
+    try {
+      await api.settings.restartAndInstall();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not restart for update');
+    }
+  }
+
+  async function handleCreateUser(e: React.FormEvent): Promise<void> {
+    e.preventDefault();
+    if (newUserPassword !== newUserConfirm) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    setCreatingUser(true);
+    try {
+      await api.auth.createUser({
+        name: newUserName,
+        email: newUserEmail,
+        password: newUserPassword,
+        role: newUserRole,
+      });
+      toast.ok(`User account created successfully for ${newUserName}`);
+      setNewUserName('');
+      setNewUserEmail('');
+      setNewUserPassword('');
+      setNewUserConfirm('');
+      setNewUserRole('staff');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not create user');
+    } finally {
+      setCreatingUser(false);
+    }
+  }
+
   if (!session) return <FirstRunForm onSaved={onRefresh} />;
+
+  const canManageUsers = ['owner', 'manager'].includes(session.user.role);
 
   return (
     <div className="grid-2 fade-up fade-up-1">
@@ -133,9 +203,54 @@ function ActiveSettings({
         </div>
       </section>
 
+      {canManageUsers && (
+        <section className="card">
+          <h3 className="card-title">Create user</h3>
+          <form onSubmit={(e) => { void handleCreateUser(e); }} className="stack">
+            <Input
+              label="Name"
+              value={newUserName}
+              onChange={(e) => setNewUserName(e.target.value)}
+              required
+            />
+            <Input
+              label="Email"
+              type="email"
+              value={newUserEmail}
+              onChange={(e) => setNewUserEmail(e.target.value)}
+              required
+            />
+            <Select
+              label="Role"
+              value={newUserRole}
+              onChange={(e) => setNewUserRole(e.target.value as UserRole)}
+              options={ROLE_OPTIONS}
+              required
+            />
+            <Input
+              label="Password"
+              type="password"
+              value={newUserPassword}
+              onChange={(e) => setNewUserPassword(e.target.value)}
+              required
+            />
+            <Input
+              label="Confirm password"
+              type="password"
+              value={newUserConfirm}
+              onChange={(e) => setNewUserConfirm(e.target.value)}
+              required
+            />
+            <div className="form-actions" style={{ marginTop: 12 }}>
+              <Button variant="primary" type="submit" loading={creatingUser}>Create user account</Button>
+            </div>
+          </form>
+        </section>
+      )}
+
       <section className="card">
         <h3 className="card-title">Updates</h3>
-        <div className="form-grid">
+        <div className="settings-update-row">
           <Select
             label="Release channel"
             value={appSettings.status === 'ok' ? appSettings.data.settings.update_channel : 'latest'}
@@ -150,8 +265,17 @@ function ActiveSettings({
             value={appSettings.status === 'ok' ? appSettings.data.updates.lastMessage ?? 'Not checked' : 'Loading'}
             readOnly
           />
+          <UpdateRing
+            percent={downloadPercent ?? (appSettings.status === 'ok' ? appSettings.data.updates.downloadPercent : null)}
+            active={checking || Boolean(downloadPercent && downloadPercent < 100)}
+          />
         </div>
         <div className="form-actions">
+          {downloadedVersion || (appSettings.status === 'ok' && appSettings.data.updates.downloadedVersion) ? (
+            <Button type="button" variant="primary" onClick={() => { void restartAndInstall(); }}>
+              Restart to update
+            </Button>
+          ) : null}
           <Button type="button" onClick={() => { void checkUpdates(); }} loading={checking}>
             Check for updates
           </Button>
@@ -177,6 +301,16 @@ function ActiveSettings({
             : 'loading'}
         </p>
       </section>
+    </div>
+  );
+}
+
+function UpdateRing({ percent, active }: { percent: number | null; active: boolean }): JSX.Element {
+  const value = Math.round(percent ?? 0);
+  const style = { '--p': `${value * 3.6}deg` } as React.CSSProperties;
+  return (
+    <div className={`update-ring${active ? ' active' : ''}`} style={style} title={`Update download ${value}%`}>
+      <span>{percent === null ? '—' : value}</span>
     </div>
   );
 }

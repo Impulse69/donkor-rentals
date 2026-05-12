@@ -36,8 +36,9 @@ export function useAsync<T>(
 
   useEffect(() => {
     run();
+    const currentCounter = counterRef;
     return () => {
-      counterRef.current++;
+      currentCounter.current++;
     };
   }, [run]);
 

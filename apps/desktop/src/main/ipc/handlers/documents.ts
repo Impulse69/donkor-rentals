@@ -1,4 +1,7 @@
-import { ipcMain } from 'electron';
+import { ipcMain, shell } from 'electron';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
 import { z } from 'zod';
 import { Uuid } from '@shared/schemas';
 import { wrap } from '../envelope';
@@ -48,5 +51,17 @@ export function registerDocumentsIpc(): void {
       }),
       ({ sourceType, sourceId }) => documents.listDocuments(getDb(), tenant(), sourceType, sourceId),
     ),
+  );
+
+  ipcMain.handle(
+    'documents:printExternal',
+    wrap('documents:printExternal', z.object({ html: z.string() }), async ({ html }) => {
+      // Create a print wrapper that forces print on load and auto-closes
+      const printWrapper = html.replace('</head>', '<script>window.onload = function() { window.print(); }</script></head>');
+      const tmpPath = join(tmpdir(), `donkor-print-${Date.now()}.html`);
+      writeFileSync(tmpPath, printWrapper, 'utf-8');
+      await shell.openExternal(`file://${tmpPath}`);
+      return true;
+    }),
   );
 }
