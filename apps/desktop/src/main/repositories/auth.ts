@@ -107,6 +107,7 @@ export async function completeFirstRun(db: Database, input: FirstRunInput): Prom
 }
 
 export function createLocalUser(db: Database, input: LocalUserCreateInput): LocalUser {
+  requireRole(db, ['owner', 'manager']);
   const tenantId = ensureBootstrapTenant(db);
   const id = uuidv4();
   const now = nowIso();

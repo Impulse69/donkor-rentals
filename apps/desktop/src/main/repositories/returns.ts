@@ -29,10 +29,10 @@ export function listReturns(db: Database, tenantId: string): Array<ReturnRecord 
   return db
     .prepare(
       `SELECT ${RETURN_COLS.split(',').map((c) => `r.${c.trim()}`).join(', ')},
-              c.name AS customer_name
+              COALESCE(c.name, b.renter_name, 'Walk-in rental') AS customer_name
        FROM returns r
        JOIN bookings b ON b.id = r.booking_id
-       JOIN customers c ON c.id = b.customer_id
+       LEFT JOIN customers c ON c.id = b.customer_id
        WHERE r.tenant_id = @tenant_id AND r.deleted_at IS NULL
        ORDER BY r.returned_at DESC`,
     )
@@ -43,12 +43,12 @@ export function getReturn(db: Database, tenantId: string, id: string): ReturnWit
   const row = db
     .prepare(
       `SELECT ${RETURN_COLS.split(',').map((c) => `r.${c.trim()}`).join(', ')},
-              c.name AS customer_name,
+              COALESCE(c.name, b.renter_name, 'Walk-in rental') AS customer_name,
               b.starts_at AS booking_starts_at,
               b.ends_at AS booking_ends_at
        FROM returns r
        JOIN bookings b ON b.id = r.booking_id
-       JOIN customers c ON c.id = b.customer_id
+       LEFT JOIN customers c ON c.id = b.customer_id
        WHERE r.id = @id AND r.tenant_id = @tenant_id`,
     )
     .get({ id, tenant_id: tenantId }) as

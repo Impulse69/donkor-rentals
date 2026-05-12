@@ -13,7 +13,7 @@ import {
   type ConflictReport,
 } from '@shared/schemas';
 
-const BOOKING_COLS = `id, tenant_id, customer_id, status, starts_at, ends_at,
+const BOOKING_COLS = `id, tenant_id, customer_id, renter_name, status, starts_at, ends_at,
   pickup_location, dropoff_location, driver_name, notes,
   created_at, updated_at, deleted_at`;
 
@@ -40,9 +40,9 @@ export function listBookings(
 ): Array<Booking & { customer_name: string }> {
   const params: Record<string, unknown> = { tenant_id: tenantId };
   let sql = `SELECT ${BOOKING_COLS.split(',').map((c) => `b.${c.trim()}`).join(', ')},
-    c.name as customer_name
+    COALESCE(c.name, b.renter_name) as customer_name
     FROM bookings b
-    JOIN customers c ON c.id = b.customer_id
+    LEFT JOIN customers c ON c.id = b.customer_id
     WHERE b.tenant_id = @tenant_id`;
   if (!filter.includeDeleted) sql += ' AND b.deleted_at IS NULL';
   if (filter.status) {
@@ -61,10 +61,10 @@ export function listBookings(
     params.window_end = filter.windowEnd;
   }
   if (filter.search) {
-    sql += ' AND (c.name LIKE @q OR b.driver_name LIKE @q OR b.notes LIKE @q)';
+    sql += ' AND (c.name LIKE @q OR b.renter_name LIKE @q OR b.driver_name LIKE @q OR b.notes LIKE @q)';
     params.q = `%${filter.search}%`;
   }
-  sql += ' ORDER BY b.created_at DESC';
+  sql += ' ORDER BY b.updated_at DESC';
   return db.prepare(sql).all(params) as Array<Booking & { customer_name: string }>;
 }
 
@@ -76,9 +76,9 @@ export function getBooking(
   const row = db
     .prepare(
       `SELECT ${BOOKING_COLS.split(',').map((c) => `b.${c.trim()}`).join(', ')},
-              c.name as customer_name
+              COALESCE(c.name, b.renter_name) as customer_name
        FROM bookings b
-       JOIN customers c ON c.id = b.customer_id
+       LEFT JOIN customers c ON c.id = b.customer_id
        WHERE b.id = @id AND b.tenant_id = @tenant_id`,
     )
     .get({ id, tenant_id: tenantId }) as (Booking & { customer_name: string }) | undefined;
@@ -133,7 +133,7 @@ export function checkConflicts(
     let unitIdentifier: string | null = null;
     if (isUnitScoped) {
       const u = db
-        .prepare(`SELECT identifier FROM item_units WHERE id = @id AND tenant_id = @tenant_id`)
+         .prepare(`SELECT identifier FROM item_units WHERE id = @id AND tenant_id = @tenant_id`)
         .get({ id: line.item_unit_id, tenant_id: tenantId }) as { identifier: string } | undefined;
       unitIdentifier = u?.identifier ?? null;
     }
@@ -144,11 +144,11 @@ export function checkConflicts(
     // item, since unit-pinned rows still consume from the same physical pool.
     const overlapSql = `
       SELECT b.id, b.starts_at, b.ends_at, b.status,
-             c.name as customer_name,
+             COALESCE(c.name, b.renter_name) as customer_name,
              bl.quantity as held_qty
       FROM booking_lines bl
       JOIN bookings  b ON b.id = bl.booking_id
-      JOIN customers c ON c.id = b.customer_id
+      LEFT JOIN customers c ON c.id = b.customer_id
       WHERE bl.tenant_id = @tenant_id
         AND bl.deleted_at IS NULL
         AND b.deleted_at IS NULL
@@ -228,7 +228,7 @@ export function createBooking(
 
   const insertBooking = db.prepare(
     `INSERT INTO bookings (${BOOKING_COLS})
-     VALUES (@id, @tenant_id, @customer_id, @status, @starts_at, @ends_at,
+     VALUES (@id, @tenant_id, @customer_id, @renter_name, @status, @starts_at, @ends_at,
              @pickup_location, @dropoff_location, @driver_name, @notes,
              @created_at, @updated_at, NULL)`,
   );
@@ -256,6 +256,7 @@ export function createBooking(
       id,
       tenant_id: tenantId,
       customer_id: input.customer_id,
+      renter_name: input.renter_name ?? null,
       status: input.status ?? 'quote',
       starts_at: input.starts_at,
       ends_at: input.ends_at,
@@ -321,7 +322,7 @@ export function updateBooking(
   const merged = { ...existing, ...patch, updated_at: nowIso() };
   db.prepare(
     `UPDATE bookings SET
-       customer_id = @customer_id, status = @status,
+       customer_id = @customer_id, renter_name = @renter_name, status = @status,
        starts_at = @starts_at, ends_at = @ends_at,
        pickup_location = @pickup_location, dropoff_location = @dropoff_location,
        driver_name = @driver_name, notes = @notes, updated_at = @updated_at
@@ -330,6 +331,7 @@ export function updateBooking(
     id,
     tenant_id: tenantId,
     customer_id: merged.customer_id,
+    renter_name: merged.renter_name ?? null,
     status: merged.status,
     starts_at: merged.starts_at,
     ends_at: merged.ends_at,

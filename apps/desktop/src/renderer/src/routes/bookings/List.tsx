@@ -1,12 +1,12 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAsync } from '../../lib/useAsync';
 import { api } from '../../lib/api';
-import { formatDate, formatDateTime } from '../../lib/format';
+import { formatDateTime, relTime } from '../../lib/format';
 import { paths } from '../../router/paths';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
 import { AsyncList } from '../../components/AsyncList';
-import { BOOKING_STATUS_LABELS, type Booking, type BookingStatus } from '@shared/schemas';
+import { BOOKING_STATUS_LABELS, type BookingStatus } from '@shared/schemas';
 import { bookingStatusTone, daysCovered } from './helpers';
 
 const STATUS_OPTIONS: ReadonlyArray<{ value: BookingStatus | 'all'; label: string }> = [
@@ -18,7 +18,16 @@ const STATUS_OPTIONS: ReadonlyArray<{ value: BookingStatus | 'all'; label: strin
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
-type Row = Booking & { customer_name: string };
+interface Row {
+  id: string;
+  status: BookingStatus;
+  customer_name: string;
+  starts_at: string;
+  ends_at: string;
+  notes: string | null;
+  driver_name: string | null;
+  updated_at: string;
+}
 
 export default function BookingsList(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -75,7 +84,7 @@ export default function BookingsList(): JSX.Element {
           emptyAction={<Link to={paths.bookings.new}><Button variant="primary">New booking</Button></Link>}
         >
           {(rows) => (
-            <BookingsTable rows={rows} onRowClick={(b) => navigate(paths.bookings.detail(b.id))} />
+            <BookingsTable rows={rows as Row[]} onRowClick={(b) => navigate(paths.bookings.detail(b.id))} />
           )}
         </AsyncList>
       </div>
@@ -94,6 +103,7 @@ function BookingsTable({ rows, onRowClick }: { rows: Row[]; onRowClick: (b: Row)
             <th>Window</th>
             <th className="num">Days</th>
             <th>Driver</th>
+            <th>Modified</th>
           </tr>
         </thead>
         <tbody>
@@ -109,6 +119,9 @@ function BookingsTable({ rows, onRowClick }: { rows: Row[]; onRowClick: (b: Row)
               </td>
               <td className="num">{daysCovered(b.starts_at, b.ends_at)}</td>
               <td>{b.driver_name || <span className="faint">—</span>}</td>
+              <td>
+                <span className="muted" style={{ fontSize: 12 }}>{relTime(b.updated_at)}</span>
+              </td>
             </tr>
           ))}
         </tbody>
