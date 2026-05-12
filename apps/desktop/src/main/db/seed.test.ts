@@ -71,6 +71,23 @@ function makeDb(): Database.Database {
       updated_at TEXT NOT NULL,
       deleted_at TEXT
     );
+    CREATE TABLE booking_lines (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      booking_id TEXT NOT NULL,
+      item_id TEXT,
+      item_unit_id TEXT,
+      quantity INTEGER DEFAULT 0,
+      daily_rate_pesewas INTEGER,
+      odometer_start_km INTEGER,
+      odometer_end_km INTEGER,
+      fuel_litres_start REAL,
+      fuel_litres_end REAL,
+      notes TEXT,
+      created_at TEXT,
+      updated_at TEXT,
+      deleted_at TEXT
+    );
   `);
   return db;
 }
