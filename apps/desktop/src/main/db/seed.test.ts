@@ -93,13 +93,13 @@ function makeDb(): Database.Database {
 }
 
 describe('dev seed', () => {
-  it('keeps starter catalog but does not create customer or booking test data', () => {
+  it('seeds starter catalog, customers and sample bookings', () => {
     const db = makeDb();
 
     seedIfEmpty(db);
 
     expect((db.prepare('SELECT COUNT(*) AS n FROM items').get() as { n: number }).n).toBeGreaterThan(0);
-    expect((db.prepare('SELECT COUNT(*) AS n FROM customers').get() as { n: number }).n).toBe(0);
-    expect((db.prepare('SELECT COUNT(*) AS n FROM bookings').get() as { n: number }).n).toBe(0);
+    expect((db.prepare('SELECT COUNT(*) AS n FROM customers').get() as { n: number }).n).toBeGreaterThan(0);
+    expect((db.prepare('SELECT COUNT(*) AS n FROM bookings').get() as { n: number }).n).toBeGreaterThan(0);
   });
 });
