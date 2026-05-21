@@ -93,42 +93,290 @@ export async function generateTripSheet(db: Database, tenantId: string, bookingI
 export async function generateInvoiceDocument(db: Database, tenantId: string, invoiceId: string): Promise<ArchivedDocument> {
   const invoice = readInvoiceBundle(db, tenantId, invoiceId);
   const title = `Invoice ${invoice.number}`;
-
-  const tableRows = invoice.lines.map((l) => [
-    String(l.description),
-    String(l.quantity),
-    String(l.days),
-    `GHS ${(Number(l.unit_price_pesewas) / 100).toFixed(2)}`,
-    `GHS ${(Number(l.line_total_pesewas) / 100).toFixed(2)}`
-  ]);
-
-  const html = renderHtmlDocument({
-    docType: 'INVOICE',
-    docNumber: invoice.number,
-    docDate: invoice.issued_at 
-      ? new Date(invoice.issued_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-      : new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-    docStatus: invoice.status.toUpperCase(),
-    customerName: invoice.customer_name,
-    customerPhone: invoice.customer_phone,
-    customerEmail: invoice.customer_email,
-    additionalInfo: invoice.due_at ? [
-      { 
-        label: 'Due Date', 
-        value: new Date(invoice.due_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) 
-      }
-    ] : [],
-    tableHeaders: ['Description', 'Qty', 'Days', 'Unit Price', 'Amount'],
-    tableRows,
-    subtotalPesewas: invoice.subtotal_pesewas,
-    taxPesewas: invoice.tax_pesewas,
-    discountPesewas: invoice.discount_pesewas,
-    totalPesewas: invoice.total_pesewas,
-    payments: invoice.payments,
-    notes: invoice.notes
-  });
-
+  const html = renderInvoiceHtml(invoice);
   return archiveDocument(db, tenantId, 'invoice', invoiceId, 'invoice', title, html);
+}
+
+export interface InvoiceTemplateData {
+  number: string;
+  status: string;
+  issued_at: string | null;
+  due_at: string | null;
+  notes: string | null;
+  customer_name: string;
+  subtotal_pesewas: number;
+  discount_pesewas: number;
+  total_pesewas: number;
+  include_statutory_taxes: boolean;
+  nhil_pesewas: number;
+  getfund_pesewas: number;
+  vat_pesewas: number;
+  initial_payment_percent: number;
+  before_delivery_percent: number;
+  lines: Array<{
+    description: string;
+    quantity: number;
+    unit_price_pesewas: number;
+    line_total_pesewas: number;
+  }>;
+}
+
+/**
+ * Customer-mandated invoice template. Two formats: Statutory (Ghana NHIL/GETFund/VAT)
+ * and Simple (subtotal only). Layout matches the two PDF samples supplied by the customer.
+ */
+export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
+  const escape = escapeHtml;
+  const fmtMoney = (p: number): string => (p / 100).toFixed(2);
+  const fmtDate = (iso: string | null | undefined): string =>
+    iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+  const issuedDate = fmtDate(invoice.issued_at ?? new Date().toISOString());
+  const dueDate = fmtDate(invoice.due_at);
+
+  const rowsHtml = invoice.lines.map((l, idx) => {
+    const lines = String(l.description).split('\n').map((s) => s.trim()).filter(Boolean);
+    const primary = lines[0] ?? '';
+    const specs = lines.slice(1).join(', ');
+    return `
+      <tr>
+        <td class="num">${idx + 1}</td>
+        <td class="desc">${escape(primary)}</td>
+        <td class="specs">${escape(specs)}</td>
+        <td class="num">${l.quantity}</td>
+        <td class="num">GHC ${fmtMoney(l.unit_price_pesewas)}</td>
+        <td class="num">GHC ${fmtMoney(l.line_total_pesewas * 1)}</td>
+      </tr>`;
+  }).join('');
+
+  const statutoryRows = invoice.include_statutory_taxes
+    ? `
+      <tr><td class="lbl">Total</td><td class="amt">GHC ${fmtMoney(invoice.subtotal_pesewas)}</td></tr>
+      <tr><td class="lbl">NHIL (2.5%)</td><td class="amt">GHC ${fmtMoney(invoice.nhil_pesewas)}</td></tr>
+      <tr><td class="lbl">GETFund (2.5%)</td><td class="amt">GHC ${fmtMoney(invoice.getfund_pesewas)}</td></tr>
+      <tr><td class="lbl">VAT (15%)</td><td class="amt">GHC ${fmtMoney(invoice.vat_pesewas)}</td></tr>
+      ${invoice.discount_pesewas > 0 ? `<tr><td class="lbl">Discount</td><td class="amt">− GHC ${fmtMoney(invoice.discount_pesewas)}</td></tr>` : ''}
+      <tr class="grand"><td class="lbl">Total Amount</td><td class="amt">GHC ${fmtMoney(invoice.total_pesewas)}</td></tr>
+    `
+    : `
+      <tr><td class="lbl">Total</td><td class="amt">GHC ${fmtMoney(invoice.subtotal_pesewas)}</td></tr>
+      ${invoice.discount_pesewas > 0 ? `<tr><td class="lbl">Discount</td><td class="amt">− GHC ${fmtMoney(invoice.discount_pesewas)}</td></tr>` : ''}
+      <tr class="grand"><td class="lbl">Total Amount</td><td class="amt">GHC ${fmtMoney(invoice.total_pesewas)}</td></tr>
+    `;
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Invoice ${escape(invoice.number)}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #1f2937;
+      margin: 0;
+      padding: 32px 36px;
+      line-height: 1.45;
+      background: #ffffff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .sheet { max-width: 820px; margin: 0 auto; }
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+      margin-bottom: 22px;
+    }
+    .firm h1 {
+      margin: 0 0 4px 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: #111827;
+    }
+    .firm p { margin: 1px 0; font-size: 12px; color: #374151; }
+    .contact { font-size: 12px; color: #374151; }
+    .contact table { border-collapse: collapse; margin-left: auto; }
+    .contact td { padding: 1px 0; vertical-align: top; }
+    .contact td.k { color: #6b7280; font-weight: 600; padding-right: 8px; text-align: right; }
+    .contact td.v { color: #111827; }
+    .title-bar {
+      text-align: center;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      color: #111827;
+      margin: 6px 0 14px 0;
+    }
+    .meta-bill {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 18px;
+      gap: 24px;
+    }
+    .bill-to .lbl {
+      font-size: 11px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .bill-to .who { font-size: 14px; font-weight: 600; color: #111827; }
+    .meta table { border-collapse: collapse; font-size: 12px; }
+    .meta td { padding: 2px 4px; }
+    .meta td.k {
+      color: #6b7280;
+      font-weight: 600;
+      text-align: right;
+      padding-right: 10px;
+    }
+    .meta td.v { color: #111827; font-weight: 600; text-align: right; }
+    table.items {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+    table.items th {
+      background: #f3f4f6;
+      color: #111827;
+      font-weight: 700;
+      text-align: left;
+      padding: 8px 10px;
+      border: 1px solid #d1d5db;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    table.items th.num { text-align: right; }
+    table.items td {
+      padding: 8px 10px;
+      border: 1px solid #e5e7eb;
+      vertical-align: top;
+    }
+    table.items td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    table.items td.desc { font-weight: 600; color: #111827; }
+    table.items td.specs { color: #4b5563; }
+    .below {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+      margin-top: 10px;
+    }
+    .terms { width: 48%; font-size: 12px; }
+    .terms .head { font-weight: 700; color: #111827; margin-bottom: 6px; }
+    .terms .row { margin: 3px 0; color: #374151; }
+    .totals { width: 48%; }
+    .totals table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .totals td { padding: 5px 8px; }
+    .totals td.lbl { color: #374151; text-align: left; }
+    .totals td.amt {
+      color: #111827;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+    }
+    .totals tr.grand td {
+      border-top: 1.5px solid #111827;
+      padding-top: 7px;
+      font-weight: 700;
+      font-size: 13px;
+      color: #111827;
+    }
+    .note {
+      margin-top: 18px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #111827;
+      letter-spacing: 0.02em;
+    }
+    .tag {
+      margin-top: 28px;
+      text-align: center;
+      font-size: 11px;
+      font-style: italic;
+      color: #4b5563;
+    }
+    @media print {
+      body { padding: 0; }
+      @page { margin: 1.5cm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="top">
+      <div class="firm">
+        <h1>Donkor and Sons Ltd.</h1>
+        <p>P. O. Box 92 Agona Swedru, Central Region</p>
+        <p>Ghana</p>
+      </div>
+      <div class="contact">
+        <table>
+          <tr><td class="k">Web:</td><td class="v">www.donkorandsons.com</td></tr>
+          <tr><td class="k">Email:</td><td class="v">info@donkorandsons.com</td></tr>
+          <tr><td class="k">Mob. :</td><td class="v">0203915510 / 0243079555</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="title-bar">INVOICE</div>
+
+    <div class="meta-bill">
+      <div class="bill-to">
+        <div class="lbl">Bill To:</div>
+        <div class="who">${escape(invoice.customer_name)}</div>
+      </div>
+      <div class="meta">
+        <table>
+          <tr><td class="k">Invoice No.</td><td class="v">${escape(invoice.number)}</td></tr>
+          <tr><td class="k">Date</td><td class="v">${escape(issuedDate)}</td></tr>
+          <tr><td class="k">Due Date</td><td class="v">${escape(dueDate)}</td></tr>
+          <tr><td class="k">Currency</td><td class="v">GHC</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <table class="items">
+      <thead>
+        <tr>
+          <th class="num" style="width: 38px;">S/n</th>
+          <th>Description</th>
+          <th>Specifications</th>
+          <th class="num" style="width: 56px;">Qty</th>
+          <th class="num" style="width: 110px;">Unit Price</th>
+          <th class="num" style="width: 120px;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+      </tbody>
+    </table>
+
+    <div class="below">
+      <div class="terms">
+        <div class="head">Payment Terms:</div>
+        <div class="row">Initial Payment: ${invoice.initial_payment_percent}%</div>
+        <div class="row">Before Delivery: ${invoice.before_delivery_percent}%</div>
+        ${invoice.notes ? `<div class="row" style="margin-top:10px; white-space: pre-wrap;">${escape(invoice.notes)}</div>` : ''}
+      </div>
+      <div class="totals">
+        <table>
+          ${statutoryRows}
+        </table>
+      </div>
+    </div>
+
+    <div class="note">NOTE: PRICES QUOTED EXCLUDES TRANSPORTATION AND HANDLING</div>
+
+    <div class="tag">Donkor and Sons............where every event becomes a memory.</div>
+  </div>
+</body>
+</html>`;
 }
 
 export async function generateReceipt(db: Database, tenantId: string, paymentId: string): Promise<ArchivedDocument> {
@@ -290,7 +538,10 @@ function readBookingBundle(db: Database, tenantId: string, bookingId: string) {
 function readInvoiceBundle(db: Database, tenantId: string, invoiceId: string) {
   const invoice = db
     .prepare(
-      `SELECT i.id, i.number, i.status, i.subtotal_pesewas, i.tax_pesewas, i.discount_pesewas, i.total_pesewas, i.issued_at, i.due_at, i.notes,
+      `SELECT i.id, i.number, i.status, i.subtotal_pesewas, i.tax_pesewas, i.discount_pesewas, i.total_pesewas,
+              i.include_statutory_taxes, i.nhil_pesewas, i.getfund_pesewas, i.vat_pesewas,
+              i.initial_payment_percent, i.before_delivery_percent,
+              i.issued_at, i.due_at, i.notes,
               COALESCE(c.name, b.renter_name, 'Walk-in rental') AS customer_name,
               c.phone AS customer_phone, c.email AS customer_email,
               b.starts_at AS booking_starts_at, b.ends_at AS booking_ends_at
@@ -308,6 +559,12 @@ function readInvoiceBundle(db: Database, tenantId: string, invoiceId: string) {
         tax_pesewas: number;
         discount_pesewas: number;
         total_pesewas: number;
+        include_statutory_taxes: number;
+        nhil_pesewas: number;
+        getfund_pesewas: number;
+        vat_pesewas: number;
+        initial_payment_percent: number;
+        before_delivery_percent: number;
         issued_at: string | null;
         due_at: string | null;
         notes: string | null;
@@ -336,7 +593,18 @@ function readInvoiceBundle(db: Database, tenantId: string, invoiceId: string) {
     )
     .all({ id: invoiceId, tenant_id: tenantId }) as Array<{ amount_pesewas: number; method: string; paid_at: string }>;
 
-  return { ...invoice, lines, payments };
+  return {
+    ...invoice,
+    include_statutory_taxes: Boolean(invoice.include_statutory_taxes),
+    lines: lines as Array<{
+      description: string;
+      quantity: number;
+      days: number;
+      unit_price_pesewas: number;
+      line_total_pesewas: number;
+    }>,
+    payments,
+  };
 }
 
 interface DocumentOptions {
