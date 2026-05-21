@@ -17,7 +17,9 @@
     "test": "pnpm -r test",
     "test:e2e": "pnpm -F @donkor/desktop test:e2e",
     "package": "pnpm -F @donkor/desktop package",
-    "release": "pnpm -F @donkor/desktop release"
+    "release": "pnpm -F @donkor/desktop release",
+    "rebuild-natives": "node ./scripts/rebuild-natives.cjs",
+    "postinstall": "node ./scripts/rebuild-natives.cjs"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
