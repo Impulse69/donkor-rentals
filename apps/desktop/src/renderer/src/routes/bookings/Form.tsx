@@ -212,7 +212,11 @@ export default function BookingForm(): JSX.Element {
   }
 
   if (editing && (existing.status === 'idle' || existing.status === 'loading')) {
-    return <div className="row" style={{ justifyContent: 'center', padding: 60 }}><Spinner /></div>;
+    return (
+      <div className="row" style={{ justifyContent: 'center', padding: 60, color: 'var(--ink-mute)' }}>
+        <Spinner /> <span style={{ marginLeft: 10 }}>Loading booking…</span>
+      </div>
+    );
   }
 
   const customerOptions = customers.status === 'ok'
@@ -223,8 +227,13 @@ export default function BookingForm(): JSX.Element {
     <div className="page fade-up" style={{ maxWidth: 1180 }}>
       <header className="page-head">
         <div>
-          <div className="page-eyebrow">Operations / Calendar</div>
+          <div className="page-eyebrow">Operations · Bookings</div>
           <h1 className="page-title">{editing ? 'Edit booking' : 'New booking'}</h1>
+          <p className="muted" style={{ marginTop: 8, maxWidth: 540, lineHeight: 1.55 }}>
+            {editing
+              ? 'Update the dates, driver, or notes. Lines are managed from the booking detail.'
+              : 'Pick a renter, choose a window, then add the lines they need. Conflicts surface on the right as you go.'}
+          </p>
         </div>
       </header>
 

@@ -29,8 +29,15 @@ export function registerDocumentsIpc(): void {
 
   ipcMain.handle(
     'documents:invoice',
-    wrap('documents:invoice', z.object({ invoiceId: Uuid }), ({ invoiceId }) =>
-      documents.generateInvoiceDocument(getDb(), tenant(), invoiceId),
+    wrap(
+      'documents:invoice',
+      z.object({
+        invoiceId: Uuid,
+        // Print-time override. Omit → use the invoice's persisted format.
+        overrideStatutory: z.boolean().optional(),
+      }),
+      ({ invoiceId, overrideStatutory }) =>
+        documents.generateInvoiceDocument(getDb(), tenant(), invoiceId, { overrideStatutory }),
     ),
   );
 

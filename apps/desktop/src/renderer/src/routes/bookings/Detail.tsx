@@ -11,6 +11,7 @@ import { Spinner } from '../../components/Spinner';
 import { EmptyState } from '../../components/EmptyState';
 import { Alert } from '../../components/Alert';
 import { AuditCard } from '../../components/AuditCard';
+import { ConfirmModal } from '../../components/Modal';
 import { useToast } from '../../components/Toast';
 import {
   BOOKING_STATUS_LABELS,
@@ -32,12 +33,19 @@ export default function BookingDetail(): JSX.Element {
   );
   const [busy, setBusy] = useState(false);
   const [docBusy, setDocBusy] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [pendingCancel, setPendingCancel] = useState<BookingStatus | null>(null);
 
   if (booking.status === 'idle' || booking.status === 'loading') {
-    return <div className="row" style={{ justifyContent: 'center', padding: 60 }}><Spinner /></div>;
+    return (
+      <div className="row" style={{ justifyContent: 'center', padding: 60, color: 'var(--ink-mute)' }}>
+        <Spinner /> <span style={{ marginLeft: 10 }}>Loading booking…</span>
+      </div>
+    );
   }
   if (booking.status === 'error') {
-    return <Alert tone="bad" eyebrow="Error">{booking.error.message}</Alert>;
+    return <Alert tone="bad" eyebrow="Error" title="Could not load this booking">{booking.error.message}</Alert>;
   }
   if (!booking.data) {
     return (
@@ -70,11 +78,11 @@ export default function BookingDetail(): JSX.Element {
     }
   }
 
-  async function onCancelDelete(): Promise<void> {
-    if (!confirm('Remove this booking from the list? Past records stay on file.')) return;
+  async function runRemove(): Promise<void> {
     try {
       await api.bookings.softDelete(b.id);
       toast.ok('Booking removed');
+      setConfirmRemove(false);
       navigate(paths.bookings.list);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not remove');
@@ -107,15 +115,24 @@ export default function BookingDetail(): JSX.Element {
     }
   }
 
+  function clickTransition(next: BookingStatus): void {
+    if (next === 'cancelled') {
+      setPendingCancel(next);
+      setConfirmCancel(true);
+      return;
+    }
+    void transition(next);
+  }
+
   return (
-    <div className="page fade-up" style={{ maxWidth: 1100 }}>
+    <div className="page fade-up" style={{ maxWidth: 1180 }}>
       <header className="page-head">
         <div>
           <div className="page-eyebrow">Operations · Booking</div>
-          <h1 className="page-title" style={{ fontStyle: 'normal' }}>{b.customer_name}</h1>
+          <h1 className="page-title">{b.customer_name}</h1>
           <div className="row" style={{ marginTop: 10, gap: 10 }}>
             <Badge tone={bookingStatusTone(b.status)} dot>{BOOKING_STATUS_LABELS[b.status]}</Badge>
-            <span className="muted mono" style={{ fontSize: 13 }}>
+            <span className="muted mono" style={{ fontSize: 12 }}>
               {formatDate(b.starts_at)} → {formatDate(b.ends_at)} · {days} day{days === 1 ? '' : 's'}
             </span>
           </div>
@@ -126,7 +143,7 @@ export default function BookingDetail(): JSX.Element {
               key={t}
               variant={t === 'cancelled' ? 'danger' : 'primary'}
               loading={busy}
-              onClick={() => { void transition(t); }}
+              onClick={() => clickTransition(t)}
             >
               {labelForTransition(b.status, t)}
             </Button>
@@ -156,14 +173,11 @@ export default function BookingDetail(): JSX.Element {
               <Button>Generate invoice</Button>
             </Link>
           )}
-          <Button
-            loading={docBusy}
-            onClick={() => { void printContract(); }}
-          >
+          <Button loading={docBusy} onClick={() => { void printContract(); }}>
             Print contract
           </Button>
           <Link to={paths.bookings.edit(b.id)}><Button>Edit</Button></Link>
-          <Button variant="danger" onClick={() => { void onCancelDelete(); }}>Remove</Button>
+          <Button variant="danger" onClick={() => setConfirmRemove(true)}>Remove</Button>
         </div>
       </header>
 
@@ -183,7 +197,7 @@ export default function BookingDetail(): JSX.Element {
               </thead>
               <tbody>
                 {b.lines.map((l) => (
-                  <tr key={l.id}>
+                  <tr key={l.id} style={{ cursor: 'default' }}>
                     <td>
                       <Link to={paths.catalog.detail(l.item_id)} style={{ color: 'inherit' }}>
                         <span className="mono muted" style={{ fontSize: 12 }}>{l.item_id.slice(0, 8)}</span>
@@ -192,16 +206,16 @@ export default function BookingDetail(): JSX.Element {
                     <td className="num">{l.quantity}</td>
                     <td className="num">{formatGhs(l.daily_rate_pesewas)}</td>
                     <td className="num">{days}</td>
-                    <td className="num">{formatGhs(l.daily_rate_pesewas * l.quantity * days)}</td>
+                    <td className="num strong">{formatGhs(l.daily_rate_pesewas * l.quantity * days)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={4} style={{ textAlign: 'right', padding: '14px', borderTop: '1px solid var(--rule)' }}>
+                  <td colSpan={4} style={{ textAlign: 'right', padding: '12px 14px', borderTop: '1px solid var(--rule)' }}>
                     <span className="muted">Subtotal</span>
                   </td>
-                  <td className="num" style={{ borderTop: '1px solid var(--rule)', fontSize: 16 }}>
+                  <td className="num" style={{ borderTop: '1px solid var(--rule)', fontSize: 14, fontWeight: 600 }}>
                     {formatGhs(subtotal)}
                   </td>
                 </tr>
@@ -231,7 +245,7 @@ export default function BookingDetail(): JSX.Element {
         </div>
 
         <div className="stack">
-          <div className="card card-warm">
+          <div className="card">
             <span className="eyebrow">Customer</span>
             <h3 style={{ marginTop: 6 }}>{b.customer_name}</h3>
             <Link to={paths.customers.detail(b.customer_id)} style={{ fontSize: 13 }}>
@@ -241,6 +255,32 @@ export default function BookingDetail(): JSX.Element {
           <AuditCard createdAt={b.created_at} updatedAt={b.updated_at} id={b.id} />
         </div>
       </div>
+
+      <ConfirmModal
+        open={confirmRemove}
+        onClose={() => setConfirmRemove(false)}
+        onConfirm={runRemove}
+        title="Remove this booking?"
+        body="Past records stay on file — this hides the booking from active lists."
+        confirmLabel="Remove booking"
+        tone="danger"
+      />
+
+      <ConfirmModal
+        open={confirmCancel}
+        onClose={() => { setConfirmCancel(false); setPendingCancel(null); }}
+        onConfirm={async () => {
+          if (pendingCancel) await transition(pendingCancel);
+          setConfirmCancel(false);
+          setPendingCancel(null);
+        }}
+        title="Cancel booking?"
+        body={`Mark "${b.customer_name}" as cancelled. The record stays on file for audit; inventory frees up immediately.`}
+        confirmLabel="Cancel booking"
+        cancelLabel="Keep booking"
+        tone="warn"
+        loading={busy}
+      />
     </div>
   );
 }

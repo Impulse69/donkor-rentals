@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Input, Select, Textarea } from '../../components/Field';
 import { Button } from '../../components/Button';
 import { Spinner } from '../../components/Spinner';
+import { EmptyState } from '../../components/EmptyState';
 import { useToast } from '../../components/Toast';
 import { useAsync } from '../../lib/useAsync';
 import { api } from '../../lib/api';
@@ -108,13 +109,20 @@ export default function CustomerForm(): JSX.Element {
   }
 
   if (editing && (existing.status === 'idle' || existing.status === 'loading')) {
-    return <div className="row" style={{ justifyContent: 'center', padding: 60 }}><Spinner /></div>;
+    return (
+      <div className="row" style={{ justifyContent: 'center', padding: 60, color: 'var(--ink-mute)' }}>
+        <Spinner /> <span style={{ marginLeft: 10 }}>Loading customer…</span>
+      </div>
+    );
   }
   if (editing && existing.status === 'ok' && !existing.data) {
     return (
       <div className="page">
-        <p>Customer not found.</p>
-        <Link to={paths.customers.list}><Button>Back to customers</Button></Link>
+        <EmptyState
+          title="Customer not found"
+          body="They may have been removed. Head back to the rolodex to pick another."
+          actions={<Link to={paths.customers.list}><Button variant="primary">Back to customers</Button></Link>}
+        />
       </div>
     );
   }
@@ -125,6 +133,11 @@ export default function CustomerForm(): JSX.Element {
         <div>
           <div className="page-eyebrow">Operations · Relations</div>
           <h1 className="page-title">{editing ? 'Edit customer' : 'Add a customer'}</h1>
+          <p className="muted" style={{ marginTop: 8, maxWidth: 540, lineHeight: 1.55 }}>
+            {editing
+              ? 'Update contact details, address, ID, or notes. Changes apply to future contracts only.'
+              : 'Capture the basics now — phone and full name are enough to start. The rest can be filled in over time.'}
+          </p>
         </div>
       </header>
 

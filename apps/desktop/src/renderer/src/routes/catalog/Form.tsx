@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Input, Select, Textarea } from '../../components/Field';
 import { Button } from '../../components/Button';
 import { Spinner } from '../../components/Spinner';
+import { EmptyState } from '../../components/EmptyState';
 import { useToast } from '../../components/Toast';
 import { api } from '../../lib/api';
 import { parseCedisToPesewas, formatPesewasPlain } from '../../lib/format';
@@ -115,13 +116,20 @@ export default function CatalogForm(): JSX.Element {
   }
 
   if (editing && (existing.status === 'idle' || existing.status === 'loading')) {
-    return <div className="row" style={{ justifyContent: 'center', padding: 60 }}><Spinner /></div>;
+    return (
+      <div className="row" style={{ justifyContent: 'center', padding: 60, color: 'var(--ink-mute)' }}>
+        <Spinner /> <span style={{ marginLeft: 10 }}>Loading item…</span>
+      </div>
+    );
   }
   if (editing && existing.status === 'ok' && !existing.data) {
     return (
       <div className="page">
-        <p>Item not found.</p>
-        <Link to={paths.catalog.list}><Button>Back to catalog</Button></Link>
+        <EmptyState
+          title="Item not found"
+          body="It may have been retired or removed. Head back to the catalog to pick another."
+          actions={<Link to={paths.catalog.list}><Button variant="primary">Back to catalog</Button></Link>}
+        />
       </div>
     );
   }

@@ -11,6 +11,8 @@ import { Spinner } from '../../components/Spinner';
 import { Input, Select } from '../../components/Field';
 import { useToast } from '../../components/Toast';
 import { EmptyState } from '../../components/EmptyState';
+import { Alert } from '../../components/Alert';
+import { ConfirmModal } from '../../components/Modal';
 import type { ItemUnit, ItemUnitStatus } from '@shared/schemas';
 
 export default function CatalogDetail(): JSX.Element {
@@ -19,12 +21,18 @@ export default function CatalogDetail(): JSX.Element {
   const toast = useToast();
   const item = useAsync(() => api.catalog.get(id), [id]);
   const units = useAsync(() => api.catalog.listUnits(id), [id]);
+  const [confirmRetire, setConfirmRetire] = useState(false);
+  const [retiring, setRetiring] = useState(false);
 
   if (item.status === 'idle' || item.status === 'loading') {
-    return <div className="row" style={{ justifyContent: 'center', padding: 60 }}><Spinner /></div>;
+    return (
+      <div className="row" style={{ justifyContent: 'center', padding: 60, color: 'var(--ink-mute)' }}>
+        <Spinner /> <span style={{ marginLeft: 10 }}>Loading item…</span>
+      </div>
+    );
   }
   if (item.status === 'error') {
-    return <div className="card" style={{ borderColor: 'var(--bad)' }}>{item.error.message}</div>;
+    return <Alert tone="bad" eyebrow="Error" title="Could not load this item">{item.error.message}</Alert>;
   }
   if (!item.data) {
     return (
@@ -41,14 +49,17 @@ export default function CatalogDetail(): JSX.Element {
   const i = item.data;
   const isHearse = i.kind === 'hearse';
 
-  async function onDelete(): Promise<void> {
-    if (!confirm(`Retire "${i.name}"? It will be hidden from lists but kept on file.`)) return;
+  async function runRetire(): Promise<void> {
+    setRetiring(true);
     try {
       await api.catalog.softDelete(i.id);
       toast.ok('Item retired');
+      setConfirmRetire(false);
       navigate(paths.catalog.list);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not retire');
+    } finally {
+      setRetiring(false);
     }
   }
 
@@ -57,7 +68,7 @@ export default function CatalogDetail(): JSX.Element {
       <header className="page-head">
         <div>
           <div className="page-eyebrow">{isHearse ? 'Operations · Fleet' : 'Operations · Inventory'}</div>
-          <h1 className="page-title" style={{ fontStyle: 'normal' }}>{i.name}</h1>
+          <h1 className="page-title">{i.name}</h1>
           <div className="row" style={{ marginTop: 10 }}>
             <span className="mono muted">{i.sku}</span>
             <span className="muted">·</span>
@@ -72,10 +83,22 @@ export default function CatalogDetail(): JSX.Element {
         <div className="page-actions">
           <Link to={paths.catalog.edit(i.id)}><Button>Edit</Button></Link>
           {i.status !== 'retired' && (
-            <Button variant="danger" onClick={() => { void onDelete(); }}>Retire</Button>
+            <Button variant="danger" onClick={() => setConfirmRetire(true)}>Retire</Button>
           )}
         </div>
       </header>
+
+      <ConfirmModal
+        open={confirmRetire}
+        onClose={() => setConfirmRetire(false)}
+        onConfirm={runRetire}
+        title={`Retire "${i.name}"?`}
+        body="The item will be hidden from active lists but its history stays on file. You can restore it later from a retired-items view."
+        confirmLabel="Retire item"
+        cancelLabel="Keep active"
+        tone="danger"
+        loading={retiring}
+      />
 
       <div className="detail-grid fade-up fade-up-1">
         <div className="card">
@@ -146,9 +169,11 @@ function UnitsSection({
       )}
 
       {loading ? (
-        <div className="row" style={{ justifyContent: 'center', padding: 30 }}><Spinner /></div>
+        <div className="row" style={{ justifyContent: 'center', padding: 30, color: 'var(--ink-mute)' }}>
+          <Spinner /> <span style={{ marginLeft: 10 }}>Loading vehicles…</span>
+        </div>
       ) : units.length === 0 ? (
-        <div className="muted" style={{ padding: '8px 0', fontStyle: 'italic' }}>
+        <div className="muted" style={{ padding: '8px 0' }}>
           No vehicles registered yet. Add the first hearse using the button above.
         </div>
       ) : (
@@ -231,7 +256,7 @@ function UnitForm({
   }
 
   return (
-    <form onSubmit={(e) => { void submit(e); }} className="card card-warm" style={{ marginBottom: 12 }}>
+    <form onSubmit={(e) => { void submit(e); }} className="card" style={{ marginBottom: 12, background: 'var(--panel-warm, var(--panel))' }}>
       <div className="form-grid">
         <Input
           label="Internal identifier"

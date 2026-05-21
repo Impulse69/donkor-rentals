@@ -12,6 +12,8 @@ import {
 
 const INVOICE_COLS = `id, tenant_id, booking_id, number, status, issued_at, due_at,
   subtotal_pesewas, tax_pesewas, discount_pesewas, total_pesewas,
+  include_statutory_taxes, nhil_pesewas, getfund_pesewas, vat_pesewas,
+  initial_payment_percent, before_delivery_percent,
   notes, created_at, updated_at, deleted_at`;
 
 const LINE_COLS = `id, tenant_id, invoice_id, booking_line_id, description,
@@ -22,6 +24,33 @@ const PAYMENT_COLS = `id, tenant_id, invoice_id, kind, amount_pesewas, method,
   reference, paid_at, notes, created_at, updated_at, deleted_at`;
 
 function nowIso(): string { return new Date().toISOString(); }
+
+/**
+ * Ghana statutory tax breakdown — cascading method (current standard since 2018).
+ *
+ *   nhil    = round(subtotal * 0.025)
+ *   getfund = round(subtotal * 0.025)
+ *   vat     = round((subtotal + nhil + getfund) * 0.15)
+ *
+ * `total_inclusive` is `subtotal + nhil + getfund + vat` — discounts are applied
+ * by the caller. All values are pesewas (integers).
+ */
+export function computeStatutoryTaxes(subtotal_pesewas: number): {
+  nhil: number;
+  getfund: number;
+  vat: number;
+  total_inclusive: number;
+} {
+  const subtotal = Math.max(0, Math.round(subtotal_pesewas));
+  const nhil = Math.round(subtotal * 0.025);
+  const getfund = Math.round(subtotal * 0.025);
+  const vat = Math.round((subtotal + nhil + getfund) * 0.15);
+  return { nhil, getfund, vat, total_inclusive: subtotal + nhil + getfund + vat };
+}
+
+function mapInvoiceRow<T extends { include_statutory_taxes: number | boolean }>(row: T): Omit<T, 'include_statutory_taxes'> & { include_statutory_taxes: boolean } {
+  return { ...row, include_statutory_taxes: Boolean(row.include_statutory_taxes) };
+}
 
 function nextInvoiceNumber(db: Database, tenantId: string): string {
   // Atomic increment: insert seed then update returning.
@@ -83,8 +112,17 @@ export function listInvoices(
     params.q = `%${filter.search}%`;
   }
   sql += ' ORDER BY i.created_at DESC';
-  const rows = db.prepare(sql).all(params) as Array<Invoice & { customer_name: string; amount_paid_pesewas: number }>;
-  return rows.map((r) => ({ ...r, balance_due_pesewas: r.total_pesewas - r.amount_paid_pesewas }));
+  const rows = db.prepare(sql).all(params) as Array<
+    Omit<Invoice, 'include_statutory_taxes'> & {
+      include_statutory_taxes: number;
+      customer_name: string;
+      amount_paid_pesewas: number;
+    }
+  >;
+  return rows.map((r) => ({
+    ...mapInvoiceRow(r),
+    balance_due_pesewas: r.total_pesewas - r.amount_paid_pesewas,
+  }));
 }
 
 export function getInvoice(
@@ -104,9 +142,15 @@ export function getInvoice(
        WHERE i.id = @id AND i.tenant_id = @tenant_id`,
     )
     .get({ id, tenant_id: tenantId }) as
-    | (Invoice & { customer_name: string; booking_starts_at: string; booking_ends_at: string })
+    | (Omit<Invoice, 'include_statutory_taxes'> & {
+        include_statutory_taxes: number;
+        customer_name: string;
+        booking_starts_at: string;
+        booking_ends_at: string;
+      })
     | undefined;
   if (!row) return null;
+  const invoiceRow = mapInvoiceRow(row);
   const lines = db
     .prepare(
       `SELECT ${LINE_COLS} FROM invoice_lines
@@ -126,11 +170,11 @@ export function getInvoice(
     0,
   );
   return {
-    ...row,
+    ...invoiceRow,
     lines,
     payments,
     amount_paid_pesewas,
-    balance_due_pesewas: row.total_pesewas - amount_paid_pesewas,
+    balance_due_pesewas: invoiceRow.total_pesewas - amount_paid_pesewas,
   };
 }
 
@@ -204,9 +248,15 @@ export function createInvoiceFromBooking(
     };
   });
 
-  const tax = input.tax_pesewas ?? 0;
+  const includeStatutory = input.include_statutory_taxes ?? true;
   const discount = input.discount_pesewas ?? 0;
-  const total = Math.max(0, subtotal + tax - discount);
+  const initialPct = input.initial_payment_percent ?? 50;
+  const beforeDeliveryPct = input.before_delivery_percent ?? 50;
+
+  const breakdown = includeStatutory
+    ? computeStatutoryTaxes(subtotal)
+    : { nhil: 0, getfund: 0, vat: 0, total_inclusive: subtotal };
+  const total = Math.max(0, breakdown.total_inclusive - discount);
 
   const id = uuidv4();
   const now = nowIso();
@@ -215,6 +265,8 @@ export function createInvoiceFromBooking(
     `INSERT INTO invoices (${INVOICE_COLS})
      VALUES (@id, @tenant_id, @booking_id, @number, 'draft', NULL, @due_at,
              @subtotal_pesewas, @tax_pesewas, @discount_pesewas, @total_pesewas,
+             @include_statutory_taxes, @nhil_pesewas, @getfund_pesewas, @vat_pesewas,
+             @initial_payment_percent, @before_delivery_percent,
              @notes, @created_at, @updated_at, NULL)`,
   );
   const insertLine = db.prepare(
@@ -233,9 +285,15 @@ export function createInvoiceFromBooking(
       number,
       due_at: input.due_at ?? null,
       subtotal_pesewas: subtotal,
-      tax_pesewas: tax,
+      tax_pesewas: 0,
       discount_pesewas: discount,
       total_pesewas: total,
+      include_statutory_taxes: includeStatutory ? 1 : 0,
+      nhil_pesewas: breakdown.nhil,
+      getfund_pesewas: breakdown.getfund,
+      vat_pesewas: breakdown.vat,
+      initial_payment_percent: initialPct,
+      before_delivery_percent: beforeDeliveryPct,
       notes: input.notes ?? null,
       created_at: now,
       updated_at: now,
@@ -282,15 +340,25 @@ export function updateInvoice(
     }
   }
 
-  const tax = patch.tax_pesewas ?? existing.tax_pesewas;
+  const includeStatutory = patch.include_statutory_taxes ?? existing.include_statutory_taxes;
   const discount = patch.discount_pesewas ?? existing.discount_pesewas;
-  const total = Math.max(0, existing.subtotal_pesewas + tax - discount);
+  const initialPct = patch.initial_payment_percent ?? existing.initial_payment_percent;
+  const beforeDeliveryPct = patch.before_delivery_percent ?? existing.before_delivery_percent;
+
+  const breakdown = includeStatutory
+    ? computeStatutoryTaxes(existing.subtotal_pesewas)
+    : { nhil: 0, getfund: 0, vat: 0, total_inclusive: existing.subtotal_pesewas };
+  const total = Math.max(0, breakdown.total_inclusive - discount);
 
   db.prepare(
     `UPDATE invoices SET
        status = @status, issued_at = @issued_at, due_at = @due_at,
-       tax_pesewas = @tax_pesewas, discount_pesewas = @discount_pesewas,
-       total_pesewas = @total_pesewas, notes = @notes, updated_at = @updated_at
+       discount_pesewas = @discount_pesewas, total_pesewas = @total_pesewas,
+       include_statutory_taxes = @include_statutory_taxes,
+       nhil_pesewas = @nhil_pesewas, getfund_pesewas = @getfund_pesewas, vat_pesewas = @vat_pesewas,
+       initial_payment_percent = @initial_payment_percent,
+       before_delivery_percent = @before_delivery_percent,
+       notes = @notes, updated_at = @updated_at
      WHERE id = @id AND tenant_id = @tenant_id`,
   ).run({
     id,
@@ -298,9 +366,14 @@ export function updateInvoice(
     status: patch.status ?? existing.status,
     issued_at,
     due_at: patch.due_at ?? existing.due_at,
-    tax_pesewas: tax,
     discount_pesewas: discount,
     total_pesewas: total,
+    include_statutory_taxes: includeStatutory ? 1 : 0,
+    nhil_pesewas: breakdown.nhil,
+    getfund_pesewas: breakdown.getfund,
+    vat_pesewas: breakdown.vat,
+    initial_payment_percent: initialPct,
+    before_delivery_percent: beforeDeliveryPct,
     notes: patch.notes !== undefined ? patch.notes : existing.notes,
     updated_at: nowIso(),
   });

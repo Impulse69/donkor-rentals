@@ -59,18 +59,26 @@ Ensure you have the following installed:
 
 ### 2. Quickstart
 ```bash
-# Install monorepo dependencies
+# Install monorepo dependencies (postinstall fetches the Electron-ABI
+# better-sqlite3 binding automatically)
 pnpm install
 
 # Start the Electron application with Hot Module Replacement (HMR)
 pnpm dev
 
 # Run full code validation checks
-pnpm lint        # Run ESLint validation
-pnpm typecheck   # Validate TypeScript types across all workspaces
-pnpm test        # Run Vitest suite
-pnpm build       # Package assets and prepare the production distributables
+pnpm lint              # Run ESLint validation
+pnpm typecheck         # Validate TypeScript types across all workspaces
+pnpm test              # Run Vitest suite
+pnpm build             # Package assets and prepare the production distributables
+pnpm rebuild-natives   # Manually refetch native bindings against Electron's Node ABI
 ```
+
+> **Native bindings (`better-sqlite3`)**: this app uses Electron's Node ABI, not your
+> system Node ABI. `pnpm install` runs `scripts/rebuild-natives.cjs` which calls
+> `prebuild-install --runtime=electron --target=<electron-version>` to fetch the
+> correct prebuilt `.node` file. If `pnpm dev` ever fails with
+> `Could not locate the bindings file`, run `pnpm rebuild-natives` to refetch.
 
 ---
 

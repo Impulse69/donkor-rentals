@@ -19,21 +19,26 @@ export default function Settings(): JSX.Element {
   const session = useAsync(() => api.auth.getSession(), []);
 
   if (session.status === 'idle' || session.status === 'loading') {
-    return <div className="row" style={{ justifyContent: 'center', padding: 60 }}><Spinner /></div>;
+    return (
+      <div className="row" style={{ justifyContent: 'center', padding: 60, color: 'var(--ink-mute)' }}>
+        <Spinner /> <span style={{ marginLeft: 10 }}>Loading settings…</span>
+      </div>
+    );
   }
 
   if (session.status === 'error') {
-    return <Alert tone="bad" eyebrow="Error">{session.error.message}</Alert>;
+    return <Alert tone="bad" eyebrow="Settings" title="Could not load settings">{session.error.message}</Alert>;
   }
 
   return (
-    <div className="page fade-up" style={{ maxWidth: 980 }}>
+    <div className="page fade-up" style={{ maxWidth: 1000 }}>
       <header className="page-head">
         <div>
           <div className="page-eyebrow">Admin · Settings</div>
-          <h1 className="page-title" style={{ fontStyle: 'normal' }}>Shop setup</h1>
-          <p className="muted" style={{ maxWidth: 620, marginTop: 8 }}>
-            Owner setup, role context, and cloud sync readiness for this Windows workstation.
+          <h1 className="page-title">Workstation</h1>
+          <p className="muted" style={{ maxWidth: 620, marginTop: 8, lineHeight: 1.55 }}>
+            Owner setup, role context, user management, updates, and cloud-sync readiness for
+            this Windows workstation.
           </p>
         </div>
       </header>
@@ -61,13 +66,13 @@ function ActiveSettings({
   const [downloadPercent, setDownloadPercent] = useState<number | null>(null);
   const [downloadedVersion, setDownloadedVersion] = useState<string | null>(null);
 
-  // User creation form states
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserConfirm, setNewUserConfirm] = useState('');
   const [newUserRole, setNewUserRole] = useState<UserRole>('staff');
   const [creatingUser, setCreatingUser] = useState(false);
+  const [userErrors, setUserErrors] = useState<Partial<Record<'email' | 'password' | 'confirm', string>>>({});
 
   useEffect(() => {
     const offProgress = api.settings.onUpdateProgress((percent) => setDownloadPercent(percent));
@@ -143,12 +148,18 @@ function ActiveSettings({
     }
   }
 
+  function validateUser(): boolean {
+    const next: typeof userErrors = {};
+    if (newUserEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newUserEmail)) next.email = 'Email looks off';
+    if (newUserPassword.length < 8) next.password = 'Use at least 8 characters';
+    if (newUserPassword !== newUserConfirm) next.confirm = 'Passwords do not match';
+    setUserErrors(next);
+    return Object.keys(next).length === 0;
+  }
+
   async function handleCreateUser(e: React.FormEvent): Promise<void> {
     e.preventDefault();
-    if (newUserPassword !== newUserConfirm) {
-      toast.error('Passwords do not match');
-      return;
-    }
+    if (!validateUser()) return;
     setCreatingUser(true);
     try {
       await api.auth.createUser({
@@ -157,12 +168,13 @@ function ActiveSettings({
         password: newUserPassword,
         role: newUserRole,
       });
-      toast.ok(`User account created successfully for ${newUserName}`);
+      toast.ok(`User account created for ${newUserName}`);
       setNewUserName('');
       setNewUserEmail('');
       setNewUserPassword('');
       setNewUserConfirm('');
       setNewUserRole('staff');
+      setUserErrors({});
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not create user');
     } finally {
@@ -185,11 +197,13 @@ function ActiveSettings({
           <KV label="Phone" value={session.shop.phone ?? 'Not set'} />
         </div>
         {session.shop.address && (
-          <p className="muted" style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{session.shop.address}</p>
+          <p className="muted" style={{ whiteSpace: 'pre-wrap', marginBottom: 0, marginTop: 12, fontSize: 13 }}>
+            {session.shop.address}
+          </p>
         )}
       </section>
 
-      <section className="card card-warm">
+      <section className="card">
         <h3 className="card-title">Signed in</h3>
         <div className="stack">
           <KV label="User" value={session.user.name} />
@@ -198,50 +212,66 @@ function ActiveSettings({
           <KV label="Supabase" value={session.supabaseConfigured ? 'Configured' : 'Local only'} />
         </div>
         <div className="form-actions">
-          <Button type="button" onClick={() => { void drain(); }} loading={syncing}>Run sync</Button>
           <Button type="button" variant="ghost" onClick={() => { void signOut(); }}>Sign out</Button>
+          <Button type="button" variant="primary" onClick={() => { void drain(); }} loading={syncing}>
+            Run sync now
+          </Button>
         </div>
       </section>
 
       {canManageUsers && (
-        <section className="card">
+        <section className="card" style={{ gridColumn: '1 / -1' }}>
           <h3 className="card-title">Create user</h3>
-          <form onSubmit={(e) => { void handleCreateUser(e); }} className="stack">
-            <Input
-              label="Name"
-              value={newUserName}
-              onChange={(e) => setNewUserName(e.target.value)}
-              required
-            />
-            <Input
-              label="Email"
-              type="email"
-              value={newUserEmail}
-              onChange={(e) => setNewUserEmail(e.target.value)}
-              required
-            />
-            <Select
-              label="Role"
-              value={newUserRole}
-              onChange={(e) => setNewUserRole(e.target.value as UserRole)}
-              options={ROLE_OPTIONS}
-              required
-            />
-            <Input
-              label="Password"
-              type="password"
-              value={newUserPassword}
-              onChange={(e) => setNewUserPassword(e.target.value)}
-              required
-            />
-            <Input
-              label="Confirm password"
-              type="password"
-              value={newUserConfirm}
-              onChange={(e) => setNewUserConfirm(e.target.value)}
-              required
-            />
-            <div className="form-actions" style={{ marginTop: 12 }}>
+          <p className="muted" style={{ marginTop: 0, marginBottom: 16, fontSize: 13 }}>
+            Staff users see only operations modules. Managers can void payments. Owners see settings.
+          </p>
+          <form onSubmit={(e) => { void handleCreateUser(e); }}>
+            <div className="form-grid">
+              <Input
+                label="Full name"
+                value={newUserName}
+                onChange={(e) => setNewUserName(e.target.value)}
+                autoComplete="name"
+                required
+              />
+              <Input
+                label="Email"
+                type="email"
+                autoComplete="username"
+                value={newUserEmail}
+                onChange={(e) => setNewUserEmail(e.target.value)}
+                error={userErrors.email}
+                required
+              />
+              <Select
+                label="Role"
+                value={newUserRole}
+                onChange={(e) => setNewUserRole(e.target.value as UserRole)}
+                options={ROLE_OPTIONS}
+                required
+              />
+              <div /> {/* spacer */}
+              <Input
+                label="Password"
+                type="password"
+                autoComplete="new-password"
+                value={newUserPassword}
+                onChange={(e) => setNewUserPassword(e.target.value)}
+                error={userErrors.password}
+                hint={userErrors.password ? undefined : 'Minimum 8 characters'}
+                required
+              />
+              <Input
+                label="Confirm password"
+                type="password"
+                autoComplete="new-password"
+                value={newUserConfirm}
+                onChange={(e) => setNewUserConfirm(e.target.value)}
+                error={userErrors.confirm}
+                required
+              />
+            </div>
+            <div className="form-actions">
               <Button variant="primary" type="submit" loading={creatingUser}>Create user account</Button>
             </div>
           </form>
@@ -261,7 +291,7 @@ function ActiveSettings({
             ]}
           />
           <Input
-            label="Last update status"
+            label="Last status"
             value={appSettings.status === 'ok' ? appSettings.data.updates.lastMessage ?? 'Not checked' : 'Loading'}
             readOnly
           />
@@ -284,22 +314,23 @@ function ActiveSettings({
 
       <section className="card">
         <h3 className="card-title">Crash reporting</h3>
-        <label className="field" style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <div className="switch-row">
+          <div className="copy">
+            <span className="t">Send crash diagnostics</span>
+            <span className="h">
+              Only sent when a DSN is configured.{' '}
+              Status: {appSettings.status === 'ok'
+                ? appSettings.data.crash.configured ? 'configured' : 'waiting for DSN'
+                : 'loading'}
+            </span>
+          </div>
           <input
             type="checkbox"
             checked={appSettings.status === 'ok' ? appSettings.data.settings.crash_reporting_enabled : false}
             onChange={(e) => { void toggleCrash(e.target.checked); }}
+            aria-label="Send crash diagnostics"
           />
-          <span>Send crash diagnostics when a DSN is configured</span>
-        </label>
-        <p className="muted" style={{ marginBottom: 0 }}>
-          Status:{' '}
-          {appSettings.status === 'ok'
-            ? appSettings.data.crash.configured
-              ? 'configured'
-              : 'waiting for DSN'
-            : 'loading'}
-        </p>
+        </div>
       </section>
     </div>
   );
@@ -347,7 +378,7 @@ function FirstRunForm({ onSaved }: { onSaved: () => void }): JSX.Element {
   }
 
   return (
-    <form className="card card-warm fade-up fade-up-1" onSubmit={(e) => { void submit(e); }}>
+    <form className="card fade-up fade-up-1" onSubmit={(e) => { void submit(e); }}>
       <span className="eyebrow">First-run wizard</span>
       <h3 style={{ marginTop: 6 }}>Create the owner profile</h3>
       <div className="form-grid" style={{ marginTop: 18 }}>

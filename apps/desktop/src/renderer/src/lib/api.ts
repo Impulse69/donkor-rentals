@@ -108,7 +108,8 @@ export const api = {
   documents: {
     contract: (bookingId: string) => unwrap(window.donkor.documents.contract(bookingId)),
     tripSheet: (bookingId: string) => unwrap(window.donkor.documents.tripSheet(bookingId)),
-    invoice: (invoiceId: string) => unwrap(window.donkor.documents.invoice(invoiceId)),
+    invoice: (invoiceId: string, options?: { overrideStatutory?: boolean }) =>
+      unwrap(window.donkor.documents.invoice(invoiceId, options)),
     receipt: (paymentId: string) => unwrap(window.donkor.documents.receipt(paymentId)),
     list: (sourceType: Parameters<typeof window.donkor.documents.list>[0], sourceId: string) =>
       unwrap(window.donkor.documents.list(sourceType, sourceId)),

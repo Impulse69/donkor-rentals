@@ -51,19 +51,35 @@ export default function ReturnForm(): JSX.Element {
   const mergedLines = useMemo(() => Object.fromEntries(initialLines.map(([id, state]) => [id, lines[id] ?? state])), [initialLines, lines]);
 
   if (booking.status === 'loading' || booking.status === 'idle') {
-    return <div className="row" style={{ justifyContent: 'center', padding: 60 }}><Spinner /></div>;
+    return (
+      <div className="row" style={{ justifyContent: 'center', padding: 60, color: 'var(--ink-mute)' }}>
+        <Spinner /> <span style={{ marginLeft: 10 }}>Loading booking…</span>
+      </div>
+    );
   }
-  if (booking.status === 'error') return <Alert tone="bad" eyebrow="Booking">{booking.error.message}</Alert>;
+  if (booking.status === 'error') {
+    return <Alert tone="bad" eyebrow="Booking" title="Could not load this booking">{booking.error.message}</Alert>;
+  }
   if (!booking.data) {
-    return <EmptyState title="Booking not found" actions={<Link to="/bookings"><Button>Back to bookings</Button></Link>} />;
+    return (
+      <div className="page">
+        <EmptyState
+          title="Booking not found"
+          body="It may have been cancelled or removed before the return was recorded."
+          actions={<Link to="/bookings"><Button variant="primary">Back to bookings</Button></Link>}
+        />
+      </div>
+    );
   }
   if (booking.data.status === 'returned') {
     return (
-      <EmptyState
-        title="Return already recorded"
-        description="A return has already been recorded for this booking."
-        actions={<Link to="/bookings"><Button>Back to bookings</Button></Link>}
-      />
+      <div className="page">
+        <EmptyState
+          title="Return already recorded"
+          body="This booking has been closed out. You can review the return from the bookings list."
+          actions={<Link to="/bookings"><Button variant="primary">Back to bookings</Button></Link>}
+        />
+      </div>
     );
   }
 
@@ -115,15 +131,18 @@ export default function ReturnForm(): JSX.Element {
       <header className="page-head">
         <div>
           <div className="page-eyebrow">Operations · Return</div>
-          <h1 className="page-title" style={{ fontStyle: 'normal' }}>{booking.data.customer_name}</h1>
-          <p className="muted" style={{ marginTop: 8 }}>Inspect returned inventory and reconcile the deposit.</p>
+          <h1 className="page-title">{booking.data.customer_name}</h1>
+          <p className="muted" style={{ marginTop: 8, maxWidth: 600, lineHeight: 1.55 }}>
+            Inspect every returned line, capture any damage, then reconcile the deposit. Charges
+            deduct from the deposit automatically; the remainder is refunded.
+          </p>
         </div>
         <div className="page-actions">
           <Button variant="primary" type="submit" loading={saving}>Record return</Button>
         </div>
       </header>
 
-      <section className="card card-warm">
+      <section className="card">
         <div className="form-grid">
           <Input label="Returned date" type="date" value={returnedAt} onChange={(e) => setReturnedAt(e.target.value)} />
           <Input label="Received by" value={receivedBy} onChange={(e) => setReceivedBy(e.target.value)} />
@@ -139,7 +158,7 @@ export default function ReturnForm(): JSX.Element {
           {booking.data.lines.map((line) => {
             const state = mergedLines[line.id];
             return (
-              <div key={line.id} className="card card-warm">
+              <div key={line.id} className="card" style={{ background: 'var(--panel-warm, var(--panel))' }}>
                 <div className="row-between" style={{ marginBottom: 12 }}>
                   <div>
                     <span className="mono muted" style={{ fontSize: 12 }}>{line.item_id.slice(0, 8)}</span>
