@@ -7,6 +7,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { Spinner } from './Spinner';
 import { api } from '../lib/api';
 import type { AuthSession, SyncStatus } from '@shared/schemas';
+import logoUrl from '../assets/logo.png';
 
 const NAV_SECTIONS = ['WORKSPACE', 'OPERATIONS', 'ADMIN'] as const;
 
@@ -94,9 +95,8 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
 function Mark(): JSX.Element {
   return (
     <Link to="/" className="sidebar-mark" aria-label="Donkor & Sons — overview">
-      <span className="mark-glyph" aria-hidden>D&amp;S</span>
+      <img src={logoUrl} alt="" className="mark-logo" />
       <span className="mark-stack">
-        <span className="name">Donkor &amp; Sons</span>
         <span className="sub">Rentals</span>
       </span>
     </Link>

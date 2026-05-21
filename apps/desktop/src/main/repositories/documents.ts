@@ -1,6 +1,7 @@
 import type { Database } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import { getSupabaseClient } from '../supabase/client';
+import { LOGO_DATA_URI } from '../assets/logoDataUri';
 
 export interface ArchivedDocument {
   id: string;
@@ -182,18 +183,41 @@ export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
       print-color-adjust: exact;
     }
     .sheet { max-width: 820px; margin: 0 auto; }
-    .top {
+    .letterhead {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: center;
       gap: 24px;
-      margin-bottom: 22px;
+      padding-bottom: 14px;
+      border-bottom: 2px solid #B8860B;
+      margin-bottom: 4px;
+      position: relative;
+    }
+    .letterhead::after {
+      content: '';
+      position: absolute;
+      left: 0; right: 0; bottom: -5px;
+      height: 1px;
+      background: #B8860B;
+      opacity: 0.55;
+    }
+    .letterhead .brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .letterhead img.logo {
+      width: 120px;
+      height: auto;
+      object-fit: contain;
+      display: block;
     }
     .firm h1 {
       margin: 0 0 4px 0;
       font-size: 18px;
       font-weight: 700;
       color: #111827;
+      letter-spacing: -0.005em;
     }
     .firm p { margin: 1px 0; font-size: 12px; color: #374151; }
     .contact { font-size: 12px; color: #374151; }
@@ -207,7 +231,7 @@ export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
       font-weight: 700;
       letter-spacing: 0.18em;
       color: #111827;
-      margin: 6px 0 14px 0;
+      margin: 22px 0 14px 0;
     }
     .meta-bill {
       display: flex;
@@ -281,7 +305,7 @@ export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
       font-weight: 600;
     }
     .totals tr.grand td {
-      border-top: 1.5px solid #111827;
+      border-top: 1.5px solid #B8860B;
       padding-top: 7px;
       font-weight: 700;
       font-size: 13px;
@@ -296,10 +320,13 @@ export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
     }
     .tag {
       margin-top: 28px;
+      padding-top: 14px;
+      border-top: 1px solid #B8860B;
       text-align: center;
       font-size: 11px;
       font-style: italic;
-      color: #4b5563;
+      color: #6b7280;
+      letter-spacing: 0.02em;
     }
     @media print {
       body { padding: 0; }
@@ -309,11 +336,14 @@ export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
 </head>
 <body>
   <div class="sheet">
-    <div class="top">
-      <div class="firm">
-        <h1>Donkor and Sons Ltd.</h1>
-        <p>P. O. Box 92 Agona Swedru, Central Region</p>
-        <p>Ghana</p>
+    <div class="letterhead">
+      <div class="brand">
+        <img class="logo" src="${LOGO_DATA_URI}" alt="Donkor & Sons" />
+        <div class="firm">
+          <h1>Donkor and Sons Ltd.</h1>
+          <p>P. O. Box 92 Agona Swedru, Central Region</p>
+          <p>Ghana</p>
+        </div>
       </div>
       <div class="contact">
         <table>

@@ -6,6 +6,7 @@ import { Input } from '../components/Field';
 import { Spinner } from '../components/Spinner';
 import { useToast } from '../components/Toast';
 import { api } from '../lib/api';
+import logoUrl from '../assets/logo.png';
 
 export default function Auth({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }): JSX.Element {
   const [hasUsers, setHasUsers] = useState<boolean | null>(null);
@@ -52,8 +53,8 @@ export default function Auth({ onAuthenticated }: { onAuthenticated: (session: A
     <main className="auth-screen">
       <section className="auth-shell">
         <div className="auth-brand">
-          <div className="auth-mark" aria-hidden>D&amp;S</div>
-          <p className="auth-eyebrow">Donkor &amp; Sons</p>
+          <img src={logoUrl} alt="Donkor & Sons" className="auth-logo" />
+          <p className="auth-eyebrow">Rentals workstation</p>
           <h1>{hasUsers ? 'Sign in to your workstation' : 'Welcome — let’s set you up'}</h1>
           <p className="auth-tagline">
             {hasUsers

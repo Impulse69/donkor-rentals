@@ -304,6 +304,9 @@ describe('renderInvoiceHtml — customer-mandated template', () => {
       expect(html).toContain('P. O. Box 92 Agona Swedru');
       expect(html).toContain('www.donkorandsons.com');
       expect(html).toContain('Bill To:');
+      // Logo letterhead — base64-embedded so the print HTML is self-contained.
+      expect(html).toContain('data:image/png;base64,');
+      expect(html).toContain('class="logo"');
     }
   });
 });
