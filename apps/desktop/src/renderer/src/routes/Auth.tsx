@@ -29,7 +29,11 @@ export default function Auth({ onAuthenticated }: { onAuthenticated: (session: A
   if (error) {
     return (
       <main className="auth-screen">
-        <Alert tone="bad" eyebrow="Auth error">{error}</Alert>
+        <div style={{ width: 'min(520px, 100%)' }}>
+          <Alert tone="bad" eyebrow="Auth error" title="Could not reach the local database">
+            {error}
+          </Alert>
+        </div>
       </main>
     );
   }
@@ -37,7 +41,9 @@ export default function Auth({ onAuthenticated }: { onAuthenticated: (session: A
   if (hasUsers === null) {
     return (
       <main className="auth-screen">
-        <Spinner />
+        <div className="row" style={{ color: 'var(--ink-mute)' }}>
+          <Spinner /> <span style={{ marginLeft: 8 }}>Loading…</span>
+        </div>
       </main>
     );
   }
@@ -46,9 +52,14 @@ export default function Auth({ onAuthenticated }: { onAuthenticated: (session: A
     <main className="auth-screen">
       <section className="auth-shell">
         <div className="auth-brand">
-          <div className="auth-mark">&amp;</div>
-          <p className="auth-eyebrow">Donkor Rentals</p>
-          <h1>{hasUsers ? 'Sign in' : 'Owner setup'}</h1>
+          <div className="auth-mark" aria-hidden>D&amp;S</div>
+          <p className="auth-eyebrow">Donkor &amp; Sons</p>
+          <h1>{hasUsers ? 'Sign in to your workstation' : 'Welcome — let’s set you up'}</h1>
+          <p className="auth-tagline">
+            {hasUsers
+              ? 'Your local data lives on this Windows machine. Cloud sync, when configured, runs in the background.'
+              : 'Create the owner account that will administer this workstation. You can add staff later from Settings.'}
+          </p>
         </div>
 
         <section className="auth-card">
@@ -84,13 +95,28 @@ function SignInForm({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
   }
 
   return (
-    <form className="auth-form" onSubmit={(e) => { void submit(e); }}>
-      <div>
-        <p className="auth-eyebrow">Returning user</p>
-        <h2>Welcome back</h2>
+    <form className="auth-form" onSubmit={(e) => { void submit(e); }} noValidate>
+      <div style={{ marginBottom: 4 }}>
+        <p className="auth-eyebrow" style={{ marginBottom: 4 }}>Returning user</p>
+        <h2 style={{ margin: 0, fontSize: 'var(--t-xl)' }}>Sign in</h2>
       </div>
-      <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-      <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+      <Input
+        label="Email"
+        type="email"
+        autoComplete="username"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+        autoFocus
+      />
+      <Input
+        label="Password"
+        type="password"
+        autoComplete="current-password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        required
+      />
       <Button variant="primary" type="submit" loading={busy}>Sign in</Button>
     </form>
   );
@@ -104,13 +130,20 @@ function FirstRunForm({ onAuthenticated }: { onAuthenticated: (session: AuthSess
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<'email' | 'password' | 'confirm', string>>>({});
+
+  function validate(): boolean {
+    const next: typeof errors = {};
+    if (ownerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)) next.email = 'Email looks off';
+    if (password.length < 8) next.password = 'Use at least 8 characters';
+    if (password !== confirm) next.confirm = 'Passwords do not match';
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  }
 
   async function submit(e: FormEvent): Promise<void> {
     e.preventDefault();
-    if (password !== confirm) {
-      toast.error('Passwords do not match');
-      return;
-    }
+    if (!validate()) return;
     setBusy(true);
     try {
       const session = await api.auth.completeFirstRun({
@@ -132,20 +165,52 @@ function FirstRunForm({ onAuthenticated }: { onAuthenticated: (session: AuthSess
   }
 
   return (
-    <form className="auth-form" onSubmit={(e) => { void submit(e); }}>
-      <div>
-        <p className="auth-eyebrow">First run</p>
-        <h2>Owner setup</h2>
+    <form className="auth-form" onSubmit={(e) => { void submit(e); }} noValidate>
+      <div style={{ marginBottom: 4 }}>
+        <p className="auth-eyebrow" style={{ marginBottom: 4 }}>First run</p>
+        <h2 style={{ margin: 0, fontSize: 'var(--t-xl)' }}>Owner setup</h2>
       </div>
-      <Input label="Shop name" value={shopName} onChange={(e) => setShopName(e.target.value)} required />
-      <Input label="Owner name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} required />
-      <Input label="Owner email" type="email" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} required />
-      <label className="field">
-        <span>Role</span>
-        <input value="Owner" disabled />
-      </label>
-      <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-      <Input label="Confirm password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+      <Input
+        label="Shop name"
+        value={shopName}
+        onChange={(e) => setShopName(e.target.value)}
+        required
+      />
+      <Input
+        label="Owner name"
+        value={ownerName}
+        onChange={(e) => setOwnerName(e.target.value)}
+        autoComplete="name"
+        required
+      />
+      <Input
+        label="Owner email"
+        type="email"
+        autoComplete="username"
+        value={ownerEmail}
+        onChange={(e) => setOwnerEmail(e.target.value)}
+        error={errors.email}
+        required
+      />
+      <Input
+        label="Password"
+        type="password"
+        autoComplete="new-password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        error={errors.password}
+        hint={errors.password ? undefined : 'Minimum 8 characters'}
+        required
+      />
+      <Input
+        label="Confirm password"
+        type="password"
+        autoComplete="new-password"
+        value={confirm}
+        onChange={(e) => setConfirm(e.target.value)}
+        error={errors.confirm}
+        required
+      />
       <Button variant="primary" type="submit" loading={busy}>Create owner account</Button>
     </form>
   );

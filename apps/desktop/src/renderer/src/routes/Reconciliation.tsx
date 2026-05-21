@@ -43,20 +43,27 @@ export default function Reconciliation(): JSX.Element {
     }
   }
 
-  if (status.status === 'error') return <Alert tone="bad" eyebrow="Sync">{status.error.message}</Alert>;
+  if (status.status === 'error') {
+    return (
+      <Alert tone="bad" eyebrow="Sync" title="Could not load sync status">
+        {status.error.message}
+      </Alert>
+    );
+  }
 
   const sync = status.status === 'ok' ? status.data : null;
   const rows = conflicts.status === 'ok' ? conflicts.data : [];
   const open = rows.filter((r) => r.status === 'open');
 
   return (
-    <div className="page fade-up" style={{ maxWidth: 1180 }}>
+    <div className="page fade-up" style={{ maxWidth: 1200 }}>
       <header className="page-head">
         <div>
           <div className="page-eyebrow">Admin · Sync</div>
-          <h1 className="page-title" style={{ fontStyle: 'normal' }}>Reconciliation</h1>
-          <p className="muted" style={{ maxWidth: 660, marginTop: 8 }}>
-            Review outbox health and resolve equal-timestamp edits before they reach staff workflows.
+          <h1 className="page-title">Reconciliation</h1>
+          <p className="muted" style={{ maxWidth: 660, marginTop: 8, lineHeight: 1.55 }}>
+            Review outbox health and resolve equal-timestamp edits before they reach staff
+            workflows.
           </p>
         </div>
         <div className="page-actions">
@@ -72,22 +79,27 @@ export default function Reconciliation(): JSX.Element {
           <KV label="Pending outbox" value={String(sync?.pending ?? 0)} />
         </div>
         <div className="card">
-          <KV label="Open conflicts" value={String(open.length)} />
+          <KV label="Open conflicts" value={String(open.length)} tone={open.length > 0 ? 'warn' : undefined} />
         </div>
       </section>
 
       {sync?.lastError && <Alert tone="bad" eyebrow="Last sync error">{sync.lastError}</Alert>}
 
-      <section className="card fade-up fade-up-2">
-        <div className="row-between" style={{ marginBottom: 12 }}>
+      <section className="card card-flush fade-up fade-up-2">
+        <div className="row-between" style={{ padding: '14px 16px', borderBottom: '1px solid var(--rule)' }}>
           <h3 className="card-title" style={{ margin: 0 }}>Conflicts</h3>
           {conflicts.status === 'loading' && <Spinner />}
         </div>
 
         {rows.length === 0 ? (
-          <EmptyState title="No conflicts" body="Equal-timestamp edits will appear here for manager review." />
+          <div style={{ padding: 0 }}>
+            <EmptyState
+              title="No conflicts"
+              body="Equal-timestamp edits will appear here for manager review."
+            />
+          </div>
         ) : (
-          <div className="dtable-wrap">
+          <div className="dtable-wrap" style={{ border: 0, borderRadius: 0 }}>
             <table className="dtable">
               <thead>
                 <tr>
@@ -95,7 +107,7 @@ export default function Reconciliation(): JSX.Element {
                   <th>Record</th>
                   <th>When</th>
                   <th>Status</th>
-                  <th />
+                  <th aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
@@ -105,7 +117,9 @@ export default function Reconciliation(): JSX.Element {
                     <td className="mono" style={{ fontSize: 12 }}>{row.record_id.slice(0, 8)}</td>
                     <td className="mono" style={{ fontSize: 12 }}>{formatDateTime(row.created_at)}</td>
                     <td>
-                      <Badge tone={row.status === 'open' ? 'warn' : 'ok'}>{row.status.replace('_', ' ')}</Badge>
+                      <Badge tone={row.status === 'open' ? 'warn' : 'ok'}>
+                        {row.status.replace('_', ' ')}
+                      </Badge>
                     </td>
                     <td>
                       {row.status === 'open' && (

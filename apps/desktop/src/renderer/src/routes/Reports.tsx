@@ -6,7 +6,7 @@ import { Button } from '../components/Button';
 import { Spinner } from '../components/Spinner';
 import { EmptyState } from '../components/EmptyState';
 import { Alert } from '../components/Alert';
-import { KV } from '../components/KV';
+import { Skeleton } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 
 export default function Reports(): JSX.Element {
@@ -43,7 +43,13 @@ export default function Reports(): JSX.Element {
     }
   }
 
-  if (overview.status === 'error') return <Alert tone="bad" eyebrow="Reports">{overview.error.message}</Alert>;
+  if (overview.status === 'error') {
+    return (
+      <Alert tone="bad" eyebrow="Reports" title="Could not load reports overview">
+        {overview.error.message}
+      </Alert>
+    );
+  }
   const o = overview.status === 'ok' ? overview.data : null;
 
   return (
@@ -51,8 +57,8 @@ export default function Reports(): JSX.Element {
       <header className="page-head">
         <div>
           <div className="page-eyebrow">Workspace · Reports</div>
-          <h1 className="page-title" style={{ fontStyle: 'normal' }}>Revenue and operations</h1>
-          <p className="muted" style={{ maxWidth: 620, marginTop: 8 }}>
+          <h1 className="page-title">Revenue and operations</h1>
+          <p className="muted" style={{ maxWidth: 620, marginTop: 8, lineHeight: 1.55 }}>
             Revenue, utilization, outstanding balances, hearse trips, and damage charges.
           </p>
         </div>
@@ -62,31 +68,31 @@ export default function Reports(): JSX.Element {
       </header>
 
       <section className="grid-3 fade-up fade-up-1">
-        <Metric label="Today" value={o ? formatGhs(o.revenue_today_pesewas) : null} />
-        <Metric label="Last 7 days" value={o ? formatGhs(o.revenue_week_pesewas) : null} />
-        <Metric label="This month" value={o ? formatGhs(o.revenue_month_pesewas) : null} />
-        <Metric label="Outstanding" value={o ? formatGhs(o.outstanding_pesewas) : null} />
+        <Metric label="Today"          value={o ? formatGhs(o.revenue_today_pesewas) : null}  mono />
+        <Metric label="Last 7 days"    value={o ? formatGhs(o.revenue_week_pesewas) : null}   mono />
+        <Metric label="This month"     value={o ? formatGhs(o.revenue_month_pesewas) : null}  mono />
+        <Metric label="Outstanding"    value={o ? formatGhs(o.outstanding_pesewas) : null}    mono />
         <Metric label="Active bookings" value={o ? o.active_bookings.toLocaleString('en-GB') : null} />
-        <Metric label="Damage balance" value={o ? formatGhs(o.open_damage_pesewas) : null} />
+        <Metric label="Damage balance" value={o ? formatGhs(o.open_damage_pesewas) : null}    mono />
       </section>
 
       <section className="grid-2 fade-up fade-up-2">
-        <ReportTable title="Utilization" loading={utilization.status === 'loading'}>
+        <ReportTable title="Utilization (last 30d)" loading={utilization.status === 'loading'}>
           {utilization.status === 'ok' && utilization.data.length > 0 ? (
             <table className="dtable">
-              <thead><tr><th>Item</th><th>Kind</th><th className="num">Booked days</th><th className="num">Utilization</th></tr></thead>
+              <thead><tr><th>Item</th><th>Kind</th><th className="num">Days</th><th className="num">Utilization</th></tr></thead>
               <tbody>
                 {utilization.data.slice(0, 8).map((row) => (
                   <tr key={row.item_id} style={{ cursor: 'default' }}>
                     <td>{row.item_name}</td>
-                    <td>{row.kind.replace('_', ' ')}</td>
+                    <td className="muted" style={{ fontSize: 12 }}>{row.kind.replace('_', ' ')}</td>
                     <td className="num">{row.booked_quantity_days}</td>
-                    <td className="num">{row.utilization_percent}%</td>
+                    <td className="num strong">{row.utilization_percent}%</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          ) : <EmptyState title="No utilization yet" />}
+          ) : <EmptyState title="No utilization yet" body="Inventory rows will appear here once bookings start using them." />}
         </ReportTable>
 
         <ReportTable title="Top customers" loading={topCustomers.status === 'loading'}>
@@ -98,12 +104,12 @@ export default function Reports(): JSX.Element {
                   <tr key={row.customer_id} style={{ cursor: 'default' }}>
                     <td>{row.customer_name}</td>
                     <td className="num">{row.bookings}</td>
-                    <td className="num">{formatGhs(row.revenue_pesewas)}</td>
+                    <td className="num strong">{formatGhs(row.revenue_pesewas)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          ) : <EmptyState title="No customer revenue yet" />}
+          ) : <EmptyState title="No customer revenue yet" body="Top customers will show up after the first paid bookings." />}
         </ReportTable>
       </section>
 
@@ -116,14 +122,14 @@ export default function Reports(): JSX.Element {
                 {trips.data.map((row) => (
                   <tr key={`${row.booking_id}-${row.item_name}`} style={{ cursor: 'default' }}>
                     <td>{row.customer_name}</td>
-                    <td>{row.item_name}{row.plate ? ` · ${row.plate}` : ''}</td>
+                    <td>{row.item_name}{row.plate ? <span className="muted mono" style={{ fontSize: 12 }}> · {row.plate}</span> : ''}</td>
                     <td className="mono" style={{ fontSize: 12 }}>{formatDate(row.starts_at)}</td>
                     <td>{row.driver_name ?? <span className="faint">Unassigned</span>}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          ) : <EmptyState title="No hearse trips yet" />}
+          ) : <EmptyState title="No hearse trips yet" body="Trip records appear here as bookings move to “checked out”." />}
         </ReportTable>
 
         <ReportTable title="Damage summary" loading={damage.status === 'loading'}>
@@ -141,17 +147,29 @@ export default function Reports(): JSX.Element {
                 ))}
               </tbody>
             </table>
-          ) : <EmptyState title="No damage recorded" />}
+          ) : <EmptyState title="No damage recorded" body="When returns flag damage, the rolled-up totals will appear here." />}
         </ReportTable>
       </section>
     </div>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string | null }): JSX.Element {
+function Metric({ label, value, mono }: { label: string; value: string | null; mono?: boolean }): JSX.Element {
   return (
     <div className="card">
-      {value === null ? <Spinner /> : <KV label={label} value={value} />}
+      <div className="page-eyebrow" style={{ marginBottom: 6 }}>{label}</div>
+      <div
+        style={{
+          fontFamily: mono ? 'var(--font-mono)' : 'var(--font-display)',
+          fontSize: mono ? 22 : 26,
+          fontWeight: 600,
+          color: 'var(--ink)',
+          lineHeight: 1.2,
+          letterSpacing: '-0.005em',
+        }}
+      >
+        {value === null ? <Skeleton width={110} height={22} /> : value}
+      </div>
     </div>
   );
 }
@@ -167,7 +185,7 @@ function ReportTable({
 }): JSX.Element {
   return (
     <section className="card card-flush">
-      <div className="row-between" style={{ padding: '16px 18px', borderBottom: '1px solid var(--rule)' }}>
+      <div className="row-between" style={{ padding: '14px 16px', borderBottom: '1px solid var(--rule)' }}>
         <h3 className="card-title" style={{ margin: 0 }}>{title}</h3>
         {loading && <Spinner />}
       </div>
