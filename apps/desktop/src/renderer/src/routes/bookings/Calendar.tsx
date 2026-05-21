@@ -4,14 +4,23 @@ import { useAsync } from '../../lib/useAsync';
 import { api } from '../../lib/api';
 import { paths } from '../../router/paths';
 import { Button } from '../../components/Button';
-import { Badge } from '../../components/Badge';
 import { Spinner } from '../../components/Spinner';
+import { Alert } from '../../components/Alert';
 import { BOOKING_STATUS_LABELS, type Booking } from '@shared/schemas';
 import { bookingStatusTone } from './helpers';
 
 type Row = Booking & { customer_name: string };
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+const TONE_TO_DOT: Record<string, string> = {
+  ok: 'var(--ok)',
+  warn: 'var(--warn)',
+  bad: 'var(--bad)',
+  info: 'var(--info)',
+  neutral: 'var(--ink-faint)',
+  gold: 'var(--accent)',
+};
 
 export default function BookingsCalendar(): JSX.Element {
   const navigate = useNavigate();
@@ -80,13 +89,13 @@ export default function BookingsCalendar(): JSX.Element {
       <header className="page-head">
         <div>
           <div className="page-eyebrow">Operations · Schedule</div>
-          <h1 className="page-title" style={{ fontStyle: 'normal' }}>{monthLabel}</h1>
+          <h1 className="page-title">{monthLabel}</h1>
         </div>
         <div className="page-actions">
-          <Button variant="ghost" onClick={() => shift(-1)}>← Prev</Button>
+          <Button variant="ghost" onClick={() => shift(-1)} aria-label="Previous month">← Prev</Button>
           <Button variant="ghost" onClick={jumpToday}>Today</Button>
-          <Button variant="ghost" onClick={() => shift(1)}>Next →</Button>
-          <Link to={paths.bookings.list}><Button>List</Button></Link>
+          <Button variant="ghost" onClick={() => shift(1)} aria-label="Next month">Next →</Button>
+          <Link to={paths.bookings.list}><Button>List view</Button></Link>
           <Link to={paths.bookings.new}><Button variant="primary">+ New</Button></Link>
         </div>
       </header>
@@ -110,17 +119,24 @@ export default function BookingsCalendar(): JSX.Element {
               >
                 <div className="cal-num">{day.getDate()}</div>
                 <div className="cal-bars">
-                  {bookings.slice(0, 4).map((b) => (
-                    <button
-                      key={b.id}
-                      className="cal-bar"
-                      onClick={() => navigate(paths.bookings.detail(b.id))}
-                      title={`${b.customer_name} · ${BOOKING_STATUS_LABELS[b.status]}`}
-                    >
-                      <Badge tone={bookingStatusTone(b.status)}>·</Badge>
-                      <span className="cal-bar-name">{b.customer_name}</span>
-                    </button>
-                  ))}
+                  {bookings.slice(0, 4).map((b) => {
+                    const tone = bookingStatusTone(b.status);
+                    return (
+                      <button
+                        key={b.id}
+                        className="cal-bar"
+                        onClick={() => navigate(paths.bookings.detail(b.id))}
+                        title={`${b.customer_name} · ${BOOKING_STATUS_LABELS[b.status]}`}
+                      >
+                        <span
+                          className="badge-dot"
+                          aria-hidden
+                          style={{ background: TONE_TO_DOT[tone] ?? 'var(--ink-faint)' }}
+                        />
+                        <span className="cal-bar-name">{b.customer_name}</span>
+                      </button>
+                    );
+                  })}
                   {bookings.length > 4 && (
                     <span className="cal-more">+{bookings.length - 4} more</span>
                   )}
@@ -130,13 +146,13 @@ export default function BookingsCalendar(): JSX.Element {
           })}
         </div>
         {list.status === 'loading' && (
-          <div className="row" style={{ justifyContent: 'center', padding: 20 }}>
-            <Spinner /> <span className="muted" style={{ marginLeft: 10 }}>Loading window…</span>
+          <div className="row" style={{ justifyContent: 'center', padding: 20, color: 'var(--ink-mute)' }}>
+            <Spinner /> <span style={{ marginLeft: 10 }}>Loading window…</span>
           </div>
         )}
         {list.status === 'error' && (
-          <div className="card" style={{ borderColor: 'var(--bad)', marginTop: 12 }}>
-            {list.error.message}
+          <div style={{ padding: 16 }}>
+            <Alert tone="bad" eyebrow="Calendar">{list.error.message}</Alert>
           </div>
         )}
       </div>
@@ -167,7 +183,6 @@ function earlierThan(target: Date, ref: Date): boolean {
 }
 function startOfCalendarMonth(d: Date): Date {
   const first = new Date(d.getFullYear(), d.getMonth(), 1);
-  // Monday-first: shift back to Monday.
   const wd = (first.getDay() + 6) % 7;
   const start = new Date(first);
   start.setDate(first.getDate() - wd);
@@ -178,7 +193,7 @@ function endOfCalendarMonth(d: Date): Date {
   const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
   const wd = (last.getDay() + 6) % 7;
   const end = new Date(last);
-  end.setDate(last.getDate() + (6 - wd) + 1); // exclusive end
+  end.setDate(last.getDate() + (6 - wd) + 1);
   end.setHours(0, 0, 0, 0);
   return end;
 }

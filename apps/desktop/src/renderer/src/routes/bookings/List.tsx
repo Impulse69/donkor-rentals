@@ -52,13 +52,13 @@ export default function BookingsList(): JSX.Element {
         <div>
           <div className="page-eyebrow">Operations · Calendar</div>
           <h1 className="page-title">Bookings</h1>
-          <p className="muted" style={{ marginTop: 8, maxWidth: 540 }}>
+          <p className="muted" style={{ marginTop: 8, maxWidth: 540, lineHeight: 1.55 }}>
             Quotes, reservations, and the trips on the road. Switch to the calendar for an
             at-a-glance week or month.
           </p>
         </div>
         <div className="page-actions">
-          <Link to={paths.bookings.calendar}><Button>Calendar</Button></Link>
+          <Link to={paths.bookings.calendar}><Button>Calendar view</Button></Link>
           <Link to={paths.bookings.new}><Button variant="primary">+ New booking</Button></Link>
         </div>
       </header>
@@ -73,14 +73,20 @@ export default function BookingsList(): JSX.Element {
         >
           {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
+        {status !== 'all' && (
+          <Button variant="ghost" type="button" onClick={() => setSearchParams({}, { replace: true })}>
+            Clear filter
+          </Button>
+        )}
       </div>
 
       <div className="fade-up fade-up-2">
         <AsyncList
           state={list}
-          loadingLabel="Reading the diary…"
           emptyTitle="No bookings yet"
-          emptyBody="Write the first quote or reservation."
+          emptyBody={status === 'all'
+            ? 'Write the first quote, reservation, or rental.'
+            : 'Nothing matches that status. Try a different filter or create a new booking.'}
           emptyAction={<Link to={paths.bookings.new}><Button variant="primary">New booking</Button></Link>}
         >
           {(rows) => (
@@ -98,7 +104,7 @@ function BookingsTable({ rows, onRowClick }: { rows: Row[]; onRowClick: (b: Row)
       <table className="dtable">
         <thead>
           <tr>
-            <th style={{ width: 110 }}>Status</th>
+            <th style={{ width: 120 }}>Status</th>
             <th>Customer</th>
             <th>Window</th>
             <th className="num">Days</th>
@@ -108,14 +114,28 @@ function BookingsTable({ rows, onRowClick }: { rows: Row[]; onRowClick: (b: Row)
         </thead>
         <tbody>
           {rows.map((b) => (
-            <tr key={b.id} onClick={() => onRowClick(b)}>
+            <tr
+              key={b.id}
+              tabIndex={0}
+              onClick={() => onRowClick(b)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onRowClick(b);
+                }
+              }}
+            >
               <td><Badge tone={bookingStatusTone(b.status)}>{BOOKING_STATUS_LABELS[b.status]}</Badge></td>
               <td>
                 <div style={{ fontWeight: 500 }}>{b.customer_name}</div>
-                {b.notes && <div className="muted" style={{ fontSize: 12 }}>{truncate(b.notes, 70)}</div>}
+                {b.notes && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{truncate(b.notes, 70)}</div>}
               </td>
               <td>
-                <div className="mono" style={{ fontSize: 13 }}>{formatDateTime(b.starts_at)} → {formatDateTime(b.ends_at)}</div>
+                <div className="mono" style={{ fontSize: 12 }}>
+                  {formatDateTime(b.starts_at)}
+                  <span className="faint" aria-hidden> → </span>
+                  {formatDateTime(b.ends_at)}
+                </div>
               </td>
               <td className="num">{daysCovered(b.starts_at, b.ends_at)}</td>
               <td>{b.driver_name || <span className="faint">—</span>}</td>
