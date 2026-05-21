@@ -65,9 +65,10 @@ export default function CustomersList(): JSX.Element {
       <div className="fade-up fade-up-2">
         <AsyncList
           state={customers}
-          loadingLabel="Looking through the rolodex…"
           emptyTitle="No customers on file"
-          emptyBody={search ? 'Nothing matches that search.' : 'Add a customer to start writing contracts against them.'}
+          emptyBody={search
+            ? `Nothing matches "${search}". Try a different name, phone, or email.`
+            : 'Add a customer to start writing contracts against them.'}
           emptyAction={<Link to={paths.customers.new}><Button variant="primary">Add first customer</Button></Link>}
         >
           {(rows) => (

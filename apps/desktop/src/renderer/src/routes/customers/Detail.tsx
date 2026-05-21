@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAsync } from '../../lib/useAsync';
 import { api } from '../../lib/api';
@@ -7,6 +8,8 @@ import { AuditCard } from '../../components/AuditCard';
 import { Button } from '../../components/Button';
 import { Spinner } from '../../components/Spinner';
 import { EmptyState } from '../../components/EmptyState';
+import { Alert } from '../../components/Alert';
+import { ConfirmModal } from '../../components/Modal';
 import { useToast } from '../../components/Toast';
 import { CUSTOMER_ID_LABELS } from '@shared/schemas';
 
@@ -15,12 +18,18 @@ export default function CustomerDetail(): JSX.Element {
   const navigate = useNavigate();
   const toast = useToast();
   const customer = useAsync(() => api.customers.get(id), [id]);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
   if (customer.status === 'idle' || customer.status === 'loading') {
-    return <div className="row" style={{ justifyContent: 'center', padding: 60 }}><Spinner /></div>;
+    return (
+      <div className="row" style={{ justifyContent: 'center', padding: 60, color: 'var(--ink-mute)' }}>
+        <Spinner /> <span style={{ marginLeft: 10 }}>Loading customer…</span>
+      </div>
+    );
   }
   if (customer.status === 'error') {
-    return <div className="card" style={{ borderColor: 'var(--bad)' }}>{customer.error.message}</div>;
+    return <Alert tone="bad" eyebrow="Error" title="Could not load this customer">{customer.error.message}</Alert>;
   }
   if (!customer.data) {
     return (
@@ -36,14 +45,17 @@ export default function CustomerDetail(): JSX.Element {
 
   const c = customer.data;
 
-  async function onDelete(): Promise<void> {
-    if (!confirm(`Remove "${c.name}" from active customers? Their history stays on file.`)) return;
+  async function runRemove(): Promise<void> {
+    setRemoving(true);
     try {
       await api.customers.softDelete(c.id);
       toast.ok('Customer removed');
+      setConfirmRemove(false);
       navigate(paths.customers.list);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not remove');
+    } finally {
+      setRemoving(false);
     }
   }
 
@@ -54,7 +66,7 @@ export default function CustomerDetail(): JSX.Element {
           <Avatar name={c.name} size={64} />
           <div>
             <div className="page-eyebrow">Operations · Customer</div>
-            <h1 className="page-title" style={{ fontStyle: 'normal' }}>{c.name}</h1>
+            <h1 className="page-title">{c.name}</h1>
             <div className="muted mono" style={{ marginTop: 6, fontSize: 13 }}>
               {c.phone || c.email || 'No contact on file'}
             </div>
@@ -62,9 +74,21 @@ export default function CustomerDetail(): JSX.Element {
         </div>
         <div className="page-actions">
           <Link to={paths.customers.edit(c.id)}><Button>Edit</Button></Link>
-          <Button variant="danger" onClick={() => { void onDelete(); }}>Remove</Button>
+          <Button variant="danger" onClick={() => setConfirmRemove(true)}>Remove</Button>
         </div>
       </header>
+
+      <ConfirmModal
+        open={confirmRemove}
+        onClose={() => setConfirmRemove(false)}
+        onConfirm={runRemove}
+        title={`Remove ${c.name}?`}
+        body="They'll be hidden from active customer lists, but every contract, invoice, and payment in their history stays on file."
+        confirmLabel="Remove customer"
+        cancelLabel="Keep on file"
+        tone="danger"
+        loading={removing}
+      />
 
       <div className="detail-grid fade-up fade-up-1">
         <div className="card">
