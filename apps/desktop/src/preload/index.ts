@@ -241,7 +241,13 @@ const api = {
   documents: {
     contract: (bookingId: string) => call<ArchivedDocument>('documents:contract', { bookingId }),
     tripSheet: (bookingId: string) => call<ArchivedDocument>('documents:tripSheet', { bookingId }),
-    invoice: (invoiceId: string) => call<ArchivedDocument>('documents:invoice', { invoiceId }),
+    invoice: (invoiceId: string, options?: { overrideStatutory?: boolean }) =>
+      call<ArchivedDocument>('documents:invoice', {
+        invoiceId,
+        ...(options && typeof options.overrideStatutory === 'boolean'
+          ? { overrideStatutory: options.overrideStatutory }
+          : {}),
+      }),
     receipt: (paymentId: string) => call<ArchivedDocument>('documents:receipt', { paymentId }),
     list: (sourceType: ArchivedDocument['source_type'], sourceId: string) =>
       call<ArchivedDocument[]>('documents:list', { sourceType, sourceId }),

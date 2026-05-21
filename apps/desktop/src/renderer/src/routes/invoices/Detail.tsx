@@ -18,6 +18,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { Alert } from '../../components/Alert';
 import { AuditCard } from '../../components/AuditCard';
 import { KV } from '../../components/KV';
+import { Modal } from '../../components/Modal';
 import { Input, Select, Textarea } from '../../components/Field';
 import { useToast } from '../../components/Toast';
 import { dateInputToIso, todayInput } from '../../lib/dates';
@@ -39,6 +40,9 @@ export default function InvoiceDetail(): JSX.Element {
   const [statusBusy, setStatusBusy] = useState(false);
   const [showPay, setShowPay] = useState(false);
   const [docBusy, setDocBusy] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
+  // Default to the invoice's saved format, but the modal lets staff override per print run.
+  const [printAsStatutory, setPrintAsStatutory] = useState<boolean>(true);
 
   if (invoice.status === 'idle' || invoice.status === 'loading') {
     return <div className="row" style={{ justifyContent: 'center', padding: 60 }}><Spinner /></div>;
@@ -83,12 +87,24 @@ export default function InvoiceDetail(): JSX.Element {
     }
   }
 
-  async function generateInvoice(): Promise<void> {
+  function openPrintChooser(): void {
+    // Pre-select whatever the invoice was saved as; staff can override before printing.
+    setPrintAsStatutory(inv.include_statutory_taxes);
+    setPrintOpen(true);
+  }
+
+  async function generateInvoice(overrideStatutory: boolean): Promise<void> {
     setDocBusy(true);
     try {
-      const doc = await api.documents.invoice(inv.id);
+      // Only send the override if it differs from the persisted format — otherwise
+      // the backend uses the stored breakdown as-is (cheaper, fewer round-trips).
+      const options = overrideStatutory !== inv.include_statutory_taxes
+        ? { overrideStatutory }
+        : undefined;
+      const doc = await api.documents.invoice(inv.id, options);
       printHtml(doc.html);
-      toast.ok(`${doc.title} sent to printer`);
+      setPrintOpen(false);
+      toast.ok(`${doc.title} (${overrideStatutory ? 'Statutory' : 'Simple'}) sent to printer`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not generate invoice');
     } finally {
@@ -109,8 +125,84 @@ export default function InvoiceDetail(): JSX.Element {
     }
   }
 
+  // --- Print-format chooser preview math (no IPC; render-only) ----------
+  const subtotalP = inv.subtotal_pesewas;
+  const discountP = inv.discount_pesewas;
+  const previewNhil = Math.round(subtotalP * 0.025);
+  const previewGetfund = Math.round(subtotalP * 0.025);
+  const previewVat = Math.round((subtotalP + previewNhil + previewGetfund) * 0.15);
+  const previewStatTotal = Math.max(0, subtotalP + previewNhil + previewGetfund + previewVat - discountP);
+  const previewSimpleTotal = Math.max(0, subtotalP - discountP);
+
   return (
     <div className="page fade-up" style={{ maxWidth: 1180 }}>
+      <Modal
+        open={printOpen}
+        onClose={() => { if (!docBusy) setPrintOpen(false); }}
+        title="Print invoice"
+        description="Pick a format for this print run. The saved invoice is not changed."
+        size="md"
+        footer={
+          <>
+            <Button type="button" variant="ghost" onClick={() => setPrintOpen(false)} disabled={docBusy}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              loading={docBusy}
+              onClick={() => { void generateInvoice(printAsStatutory); }}
+            >
+              Print as {printAsStatutory ? 'Statutory' : 'Simple'}
+            </Button>
+          </>
+        }
+      >
+        <div className="print-format-grid">
+          <PrintFormatOption
+            selected={printAsStatutory}
+            onSelect={() => setPrintAsStatutory(true)}
+            label="Statutory"
+            sub="NHIL · GETFund · VAT broken out"
+            ariaLabel="Print with statutory tax breakdown"
+            rows={[
+              { k: 'Subtotal',       v: formatGhs(subtotalP),    muted: true },
+              { k: 'NHIL (2.5%)',    v: formatGhs(previewNhil),  muted: true },
+              { k: 'GETFund (2.5%)', v: formatGhs(previewGetfund), muted: true },
+              { k: 'VAT (15%)',      v: formatGhs(previewVat),   muted: true },
+              ...(discountP > 0
+                ? [{ k: 'Discount', v: `− ${formatGhs(discountP)}`, muted: true }]
+                : []),
+              { k: 'Total Amount',   v: formatGhs(previewStatTotal), strong: true },
+            ]}
+          />
+          <PrintFormatOption
+            selected={!printAsStatutory}
+            onSelect={() => setPrintAsStatutory(false)}
+            label="Simple"
+            sub="Subtotal only — no statutory lines"
+            ariaLabel="Print without statutory tax breakdown"
+            rows={[
+              { k: 'Subtotal', v: formatGhs(subtotalP), muted: true },
+              ...(discountP > 0
+                ? [{ k: 'Discount', v: `− ${formatGhs(discountP)}`, muted: true }]
+                : []),
+              { k: 'Total Amount', v: formatGhs(previewSimpleTotal), strong: true },
+            ]}
+          />
+        </div>
+        {printAsStatutory !== inv.include_statutory_taxes && (
+          <Alert
+            tone="info"
+            compact
+            eyebrow="Print override"
+            title={`This print will differ from the invoice's saved format (${inv.include_statutory_taxes ? 'Statutory' : 'Simple'}).`}
+          >
+            The change applies only to this printout. The invoice record stays as-is.
+          </Alert>
+        )}
+      </Modal>
+
       <header className="page-head">
         <div>
           <div className="page-eyebrow">Operations · Receivables</div>
@@ -142,7 +234,7 @@ export default function InvoiceDetail(): JSX.Element {
               void generateReceipt(latestPayment.id);
             }}>Print receipt</Button>
           ) : (
-            <Button loading={docBusy} onClick={() => { void generateInvoice(); }}>Print invoice</Button>
+            <Button onClick={openPrintChooser}>Print invoice…</Button>
           )}
           {(inv.status === 'draft' || inv.status === 'issued') && (
             <Button variant="danger" loading={statusBusy} onClick={() => { void moveStatus('void'); }}>
@@ -411,6 +503,54 @@ function PaymentForm({
         <Button variant="primary" type="submit" loading={saving}>Record</Button>
       </div>
     </form>
+  );
+}
+
+// --- Print-format chooser sub-component --------------------------------------
+interface FormatRow { k: string; v: string; muted?: boolean; strong?: boolean }
+function PrintFormatOption({
+  selected,
+  onSelect,
+  label,
+  sub,
+  ariaLabel,
+  rows,
+}: {
+  selected: boolean;
+  onSelect: () => void;
+  label: string;
+  sub: string;
+  ariaLabel: string;
+  rows: FormatRow[];
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      aria-label={ariaLabel}
+      className={`print-format-option${selected ? ' is-selected' : ''}`}
+    >
+      <div className="print-format-head">
+        <span className="print-format-radio" aria-hidden>
+          <span className="dot" />
+        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span className="print-format-label">{label}</span>
+          <span className="print-format-sub">{sub}</span>
+        </div>
+      </div>
+      <table className="print-format-totals">
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.k} className={r.strong ? 'is-grand' : ''}>
+              <td className={r.muted ? 'muted' : ''}>{r.k}</td>
+              <td className="num">{r.v}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </button>
   );
 }
 

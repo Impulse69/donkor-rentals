@@ -1,3 +1,97 @@
+/* === Print format chooser ===================================== */
+.print-format-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+.print-format-option {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease), background var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+  color: inherit;
+  font: inherit;
+}
+.print-format-option:hover {
+  border-color: var(--rule-strong);
+  background: var(--panel-warm, var(--panel));
+}
+.print-format-option:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft, color-mix(in srgb, var(--accent) 20%, transparent));
+}
+.print-format-option.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft, color-mix(in srgb, var(--accent) 8%, var(--panel)));
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.print-format-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.print-format-radio {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--rule-strong);
+  display: grid;
+  place-items: center;
+  background: var(--panel);
+}
+.print-format-option.is-selected .print-format-radio {
+  border-color: var(--accent);
+}
+.print-format-radio .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: transparent;
+  transition: background var(--dur-1) var(--ease);
+}
+.print-format-option.is-selected .print-format-radio .dot {
+  background: var(--accent);
+}
+.print-format-label {
+  font-weight: 600;
+  font-size: var(--t-md);
+  color: var(--ink);
+}
+.print-format-sub {
+  font-size: var(--t-xs);
+  color: var(--ink-mute);
+}
+.print-format-totals {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
+}
+.print-format-totals td {
+  padding: 3px 0;
+  vertical-align: baseline;
+}
+.print-format-totals td.num {
+  text-align: right;
+  font-family: var(--font-mono);
+}
+.print-format-totals tr.is-grand td {
+  border-top: 1px solid var(--rule);
+  padding-top: 7px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
 /* === Button =================================================== */
 .btn {
   display: inline-flex;

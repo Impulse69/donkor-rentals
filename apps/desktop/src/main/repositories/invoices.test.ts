@@ -6,7 +6,7 @@ import {
   createInvoiceFromBooking,
   updateInvoice,
 } from './invoices';
-import { renderInvoiceHtml, type InvoiceTemplateData } from './documents';
+import { renderInvoiceHtml, applyStatutoryOverride, type InvoiceTemplateData } from './documents';
 
 const TENANT_ID = '00000000-0000-4000-8000-000000000001';
 const ITEM_ID = '00000000-0000-4000-8000-000000000010';
@@ -269,9 +269,10 @@ describe('renderInvoiceHtml — customer-mandated template', () => {
 
   it('Format A renders statutory tax lines', () => {
     const html = renderInvoiceHtml(baseInvoice);
-    expect(html).toContain('NHIL (2.5%)');
-    expect(html).toContain('GETFund (2.5%)');
-    expect(html).toContain('VAT (15%)');
+    // Anchor on the cell markup so base64 logo noise can't false-positive.
+    expect(html).toContain('>NHIL (2.5%)<');
+    expect(html).toContain('>GETFund (2.5%)<');
+    expect(html).toContain('>VAT (15%)<');
     expect(html).toContain('Total Amount');
     expect(html).toContain('GHC 1000.00'); // subtotal in cedis
     expect(html).toContain('GHC 1207.50'); // total — no thousands separator in template
@@ -287,9 +288,12 @@ describe('renderInvoiceHtml — customer-mandated template', () => {
 
   it('Format B renders only subtotal and total, no statutory rows', () => {
     const html = renderInvoiceHtml({ ...baseInvoice, include_statutory_taxes: false, nhil_pesewas: 0, getfund_pesewas: 0, vat_pesewas: 0, total_pesewas: 100_000 });
-    expect(html).not.toContain('NHIL');
-    expect(html).not.toContain('GETFund');
-    expect(html).not.toContain('VAT');
+    // The 135 KB base64 logo on the letterhead can coincidentally contain the
+    // letters "VAT", "NHIL" etc. as substrings — so we check for the actual
+    // totals-table cell markup rather than the bare word.
+    expect(html).not.toContain('>NHIL (2.5%)<');
+    expect(html).not.toContain('>GETFund (2.5%)<');
+    expect(html).not.toContain('>VAT (15%)<');
     expect(html).toContain('Total Amount');
     expect(html).toContain('GHC 1000.00');
   });
@@ -308,5 +312,53 @@ describe('renderInvoiceHtml — customer-mandated template', () => {
       expect(html).toContain('data:image/png;base64,');
       expect(html).toContain('class="logo"');
     }
+  });
+});
+
+describe('applyStatutoryOverride — print-time format swap', () => {
+  const statutory: InvoiceTemplateData = {
+    number: 'INV-OVR-1', status: 'issued',
+    issued_at: null, due_at: null, notes: null,
+    customer_name: 'X', subtotal_pesewas: 100_000, discount_pesewas: 0,
+    total_pesewas: 120_750, include_statutory_taxes: true,
+    nhil_pesewas: 2_500, getfund_pesewas: 2_500, vat_pesewas: 15_750,
+    initial_payment_percent: 50, before_delivery_percent: 50,
+    lines: [{ description: 'X', quantity: 1, unit_price_pesewas: 100_000, line_total_pesewas: 100_000 }],
+  };
+
+  it('Statutory → Simple zeroes the breakdown and rebases the total on subtotal', () => {
+    const out = applyStatutoryOverride(statutory, false);
+    expect(out.include_statutory_taxes).toBe(false);
+    expect(out.nhil_pesewas).toBe(0);
+    expect(out.getfund_pesewas).toBe(0);
+    expect(out.vat_pesewas).toBe(0);
+    expect(out.total_pesewas).toBe(100_000); // subtotal − discount(0)
+  });
+
+  it('Simple → Statutory recomputes NHIL/GETFund/VAT via the cascading Ghana formula', () => {
+    const simple: InvoiceTemplateData = { ...statutory, include_statutory_taxes: false, nhil_pesewas: 0, getfund_pesewas: 0, vat_pesewas: 0, total_pesewas: 100_000 };
+    const out = applyStatutoryOverride(simple, true);
+    expect(out.include_statutory_taxes).toBe(true);
+    expect(out.nhil_pesewas).toBe(2_500);
+    expect(out.getfund_pesewas).toBe(2_500);
+    expect(out.vat_pesewas).toBe(15_750);
+    expect(out.total_pesewas).toBe(120_750);
+  });
+
+  it('applies discount last in both directions', () => {
+    const withDisc: InvoiceTemplateData = { ...statutory, discount_pesewas: 5_000, total_pesewas: 115_750 };
+    const off = applyStatutoryOverride(withDisc, false);
+    expect(off.total_pesewas).toBe(95_000); // 100_000 − 5_000
+
+    const simpleWithDisc: InvoiceTemplateData = {
+      ...statutory, include_statutory_taxes: false, nhil_pesewas: 0, getfund_pesewas: 0, vat_pesewas: 0,
+      discount_pesewas: 5_000, total_pesewas: 95_000,
+    };
+    const on = applyStatutoryOverride(simpleWithDisc, true);
+    expect(on.total_pesewas).toBe(115_750); // 100k + 2.5k + 2.5k + 15.75k − 5k
+  });
+
+  it('no-op when the override matches the persisted flag', () => {
+    expect(applyStatutoryOverride(statutory, true)).toBe(statutory);
   });
 });

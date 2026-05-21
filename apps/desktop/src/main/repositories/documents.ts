@@ -91,11 +91,60 @@ export async function generateTripSheet(db: Database, tenantId: string, bookingI
   return archiveDocument(db, tenantId, 'booking', bookingId, 'trip_sheet', title, html);
 }
 
-export async function generateInvoiceDocument(db: Database, tenantId: string, invoiceId: string): Promise<ArchivedDocument> {
+export async function generateInvoiceDocument(
+  db: Database,
+  tenantId: string,
+  invoiceId: string,
+  options?: { overrideStatutory?: boolean },
+): Promise<ArchivedDocument> {
   const invoice = readInvoiceBundle(db, tenantId, invoiceId);
-  const title = `Invoice ${invoice.number}`;
-  const html = renderInvoiceHtml(invoice);
+  const effective = options && typeof options.overrideStatutory === 'boolean'
+    ? applyStatutoryOverride(invoice, options.overrideStatutory)
+    : invoice;
+  const title = `Invoice ${effective.number}`;
+  const html = renderInvoiceHtml(effective);
   return archiveDocument(db, tenantId, 'invoice', invoiceId, 'invoice', title, html);
+}
+
+/**
+ * Apply a print-time format override without mutating the stored invoice.
+ *
+ * - Toggling ON (`true`): recompute NHIL/GETFund/VAT from the subtotal via the
+ *   cascading Ghana formula and add them to the total.
+ * - Toggling OFF (`false`): zero the breakdown and rebase the total on the
+ *   subtotal alone.
+ *
+ * Discount always subtracts last in both branches.
+ */
+export function applyStatutoryOverride(
+  invoice: InvoiceTemplateData,
+  includeStatutory: boolean,
+): InvoiceTemplateData {
+  if (invoice.include_statutory_taxes === includeStatutory) return invoice;
+  const subtotal = invoice.subtotal_pesewas;
+  const discount = invoice.discount_pesewas;
+  if (includeStatutory) {
+    const nhil = Math.round(subtotal * 0.025);
+    const getfund = Math.round(subtotal * 0.025);
+    const vat = Math.round((subtotal + nhil + getfund) * 0.15);
+    const total = Math.max(0, subtotal + nhil + getfund + vat - discount);
+    return {
+      ...invoice,
+      include_statutory_taxes: true,
+      nhil_pesewas: nhil,
+      getfund_pesewas: getfund,
+      vat_pesewas: vat,
+      total_pesewas: total,
+    };
+  }
+  return {
+    ...invoice,
+    include_statutory_taxes: false,
+    nhil_pesewas: 0,
+    getfund_pesewas: 0,
+    vat_pesewas: 0,
+    total_pesewas: Math.max(0, subtotal - discount),
+  };
 }
 
 export interface InvoiceTemplateData {
