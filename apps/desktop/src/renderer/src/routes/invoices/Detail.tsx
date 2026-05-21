@@ -191,11 +191,26 @@ export default function InvoiceDetail(): JSX.Element {
           </div>
 
           <div style={{ marginTop: 14, padding: '12px 14px', borderTop: '1px solid var(--rule)' }}>
+            <div className="row" style={{ gap: 8, marginBottom: 8 }}>
+              <Badge tone={inv.include_statutory_taxes ? 'gold' : 'neutral'}>
+                {inv.include_statutory_taxes ? 'Statutory' : 'Simple'}
+              </Badge>
+              <span className="muted" style={{ fontSize: 12 }}>
+                Initial {inv.initial_payment_percent}% · Before Delivery {inv.before_delivery_percent}%
+              </span>
+            </div>
             <KV label="Subtotal" value={formatGhs(inv.subtotal_pesewas)} />
-            {inv.tax_pesewas > 0 && <KV label="Tax" value={formatGhs(inv.tax_pesewas)} />}
+            {inv.include_statutory_taxes && (
+              <>
+                <KV label="NHIL (2.5%)" value={formatGhs(inv.nhil_pesewas)} />
+                <KV label="GETFund (2.5%)" value={formatGhs(inv.getfund_pesewas)} />
+                <KV label="VAT (15%)" value={formatGhs(inv.vat_pesewas)} />
+              </>
+            )}
+            {inv.tax_pesewas > 0 && <KV label="Other tax" value={formatGhs(inv.tax_pesewas)} />}
             {inv.discount_pesewas > 0 && <KV label="Discount" value={`− ${formatGhs(inv.discount_pesewas)}`} />}
             <div style={{ borderTop: '1px solid var(--rule-soft)', margin: '8px 0' }} />
-            <KV label="Total" value={formatGhs(inv.total_pesewas)} bold />
+            <KV label="Total Amount" value={formatGhs(inv.total_pesewas)} bold />
             <KV label="Paid" value={formatGhs(inv.amount_paid_pesewas)} />
             <KV
               label="Balance due"

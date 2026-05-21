@@ -13,6 +13,21 @@ import { Badge } from '../../components/Badge';
 import { KV } from '../../components/KV';
 import { dateInputToIso } from '../../lib/dates';
 
+type TaxFormat = 'statutory' | 'simple';
+
+/**
+ * Pure copy of the cascading Ghana statutory tax formula from the main repo,
+ * used here only to drive the live preview. The authoritative computation
+ * happens server-side in `repositories/invoices.ts#computeStatutoryTaxes`.
+ */
+function previewStatutory(subtotal: number): { nhil: number; getfund: number; vat: number; total: number } {
+  const sub = Math.max(0, Math.round(subtotal));
+  const nhil = Math.round(sub * 0.025);
+  const getfund = Math.round(sub * 0.025);
+  const vat = Math.round((sub + nhil + getfund) * 0.15);
+  return { nhil, getfund, vat, total: sub + nhil + getfund + vat };
+}
+
 export default function NewInvoice(): JSX.Element {
   const [params] = useSearchParams();
   const fromBookingId = params.get('from') ?? '';
@@ -26,15 +41,15 @@ export default function NewInvoice(): JSX.Element {
     [bookingId],
   );
 
-  // Existing invoices for this booking — surface a warning so we don't
-  // silently issue duplicates.
   const existing = useAsync(
     () => (bookingId ? api.invoices.list({ bookingId }) : Promise.resolve([])),
     [bookingId],
   );
 
-  const [tax, setTax] = useState('0.00');
+  const [taxFormat, setTaxFormat] = useState<TaxFormat>('statutory');
   const [discount, setDiscount] = useState('0.00');
+  const [initialPct, setInitialPct] = useState<number>(50);
+  const [beforeDeliveryPct, setBeforeDeliveryPct] = useState<number>(50);
   const [notes, setNotes] = useState('');
   const [dueAt, setDueAt] = useState<string>('');
   const [saving, setSaving] = useState(false);
@@ -42,7 +57,6 @@ export default function NewInvoice(): JSX.Element {
   const bookingDataId = booking.status === 'ok' ? booking.data?.id : null;
   const bookingData = booking.data;
 
-  // Default due date = booking end + 7 days when booking changes.
   useEffect(() => {
     if (booking.status === 'ok' && bookingData) {
       const d = new Date(bookingData.ends_at);
@@ -65,25 +79,28 @@ export default function NewInvoice(): JSX.Element {
     );
     const lines = booking.data.lines.map((l) => ({
       id: l.id,
-      description: `Item ${l.item_id.slice(0, 8)}…`, // booking line lacks item_name; replaced below.
+      description: `Item ${l.item_id.slice(0, 8)}…`,
       quantity: l.quantity,
       days,
       unit_price_pesewas: l.daily_rate_pesewas,
       line_total_pesewas: l.daily_rate_pesewas * l.quantity * days,
     }));
     const subtotal = lines.reduce((acc, l) => acc + l.line_total_pesewas, 0);
-    const taxN = parseCedisToPesewas(tax);
     const discountN = parseCedisToPesewas(discount);
-    const total = Math.max(0, subtotal + taxN - discountN);
-    return { lines, days, subtotal, tax: taxN, discount: discountN, total };
-  }, [booking, tax, discount]);
+    const tax = previewStatutory(subtotal);
+    const grossTotal = taxFormat === 'statutory' ? tax.total : subtotal;
+    const total = Math.max(0, grossTotal - discountN);
+    return { lines, days, subtotal, tax, discount: discountN, total };
+  }, [booking, taxFormat, discount]);
 
-  // Resolve item names for the preview.
   const items = useAsync(() => api.catalog.list({}), []);
   const itemName = (id: string): string => {
     if (items.status !== 'ok') return id.slice(0, 8);
     return items.data.find((i) => i.id === id)?.name ?? id.slice(0, 8);
   };
+
+  const termsSum = initialPct + beforeDeliveryPct;
+  const termsMismatch = termsSum !== 100;
 
   async function onGenerate(): Promise<void> {
     if (!bookingId) { toast.error('Pick a booking'); return; }
@@ -91,7 +108,9 @@ export default function NewInvoice(): JSX.Element {
     try {
       const invoice = await api.invoices.createFromBooking({
         booking_id: bookingId,
-        tax_pesewas: parseCedisToPesewas(tax),
+        include_statutory_taxes: taxFormat === 'statutory',
+        initial_payment_percent: initialPct,
+        before_delivery_percent: beforeDeliveryPct,
         discount_pesewas: parseCedisToPesewas(discount),
         notes: notes || null,
         due_at: dueAt ? dateInputToIso(dueAt, '17:00') : null,
@@ -113,7 +132,7 @@ export default function NewInvoice(): JSX.Element {
           <h1 className="page-title">Generate invoice</h1>
           <p className="muted" style={{ marginTop: 8, maxWidth: 600 }}>
             Pick a booking — its lines become the invoice lines, with days computed from the
-            booking window. Tax and discount adjust the total.
+            booking window. Choose a tax format and set payment terms.
           </p>
         </div>
       </header>
@@ -140,14 +159,66 @@ export default function NewInvoice(): JSX.Element {
               </select>
             </div>
 
+            <div className="field full">
+              <span className="field-label">Tax format</span>
+              <div
+                role="radiogroup"
+                aria-label="Tax format"
+                style={{
+                  display: 'inline-flex',
+                  border: '1px solid var(--rule)',
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  background: 'var(--panel)',
+                }}
+              >
+                {(['statutory', 'simple'] as const).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    role="radio"
+                    aria-checked={taxFormat === f}
+                    onClick={() => setTaxFormat(f)}
+                    style={{
+                      padding: '8px 18px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: taxFormat === f ? 'var(--accent, #111)' : 'transparent',
+                      color: taxFormat === f ? '#fff' : 'var(--ink, #111)',
+                      fontWeight: 600,
+                      fontSize: 13,
+                      textTransform: 'capitalize',
+                    }}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+              <span className="field-hint" style={{ display: 'block', marginTop: 6 }}>
+                {taxFormat === 'statutory'
+                  ? 'NHIL 2.5% + GETFund 2.5% + VAT 15% (cascading) added to subtotal.'
+                  : 'Subtotal only — no statutory taxes added.'}
+              </span>
+            </div>
+
             <Input
-              label="Tax"
-              prefix="GH₵"
-              mono
-              value={tax}
-              onChange={(e) => setTax(e.target.value)}
-              hint="VAT / NHIL / GETFund as a single line"
+              label="Initial payment %"
+              type="number"
+              min={0}
+              max={100}
+              value={String(initialPct)}
+              onChange={(e) => setInitialPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
             />
+            <Input
+              label="Before delivery %"
+              type="number"
+              min={0}
+              max={100}
+              value={String(beforeDeliveryPct)}
+              onChange={(e) => setBeforeDeliveryPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+              hint={termsMismatch ? `Initial + Before Delivery = ${termsSum}% (not 100%)` : 'Initial + Before Delivery = 100%'}
+            />
+
             <Input
               label="Discount"
               prefix="GH₵"
@@ -160,7 +231,6 @@ export default function NewInvoice(): JSX.Element {
               type="date"
               value={dueAt}
               onChange={(e) => setDueAt(e.target.value)}
-              containerClass="full"
             />
             <Textarea
               containerClass="full"
@@ -220,9 +290,15 @@ export default function NewInvoice(): JSX.Element {
               </div>
               <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--rule)' }}>
                 <KV label="Subtotal" value={formatGhs(preview.subtotal)} />
-                {preview.tax > 0 && <KV label="Tax" value={formatGhs(preview.tax)} />}
+                {taxFormat === 'statutory' && (
+                  <>
+                    <KV label="NHIL (2.5%)" value={formatGhs(preview.tax.nhil)} />
+                    <KV label="GETFund (2.5%)" value={formatGhs(preview.tax.getfund)} />
+                    <KV label="VAT (15%)" value={formatGhs(preview.tax.vat)} />
+                  </>
+                )}
                 {preview.discount > 0 && <KV label="Discount" value={`− ${formatGhs(preview.discount)}`} />}
-                <KV label="Total" value={formatGhs(preview.total)} bold />
+                <KV label="Total Amount" value={formatGhs(preview.total)} bold />
               </div>
             </div>
           )}
@@ -243,4 +319,3 @@ export default function NewInvoice(): JSX.Element {
     </div>
   );
 }
-
