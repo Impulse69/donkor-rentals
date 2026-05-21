@@ -139,7 +139,18 @@ function ItemTable({ items, onClick }: { items: Item[]; onClick: (item: Item) =>
         </thead>
         <tbody>
           {items.map((i) => (
-            <tr key={i.id} onClick={() => onClick(i)}>
+            <tr
+              key={i.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onClick(i)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onClick(i);
+                }
+              }}
+            >
               <td><span className="mono" style={{ color: 'var(--ink-mute)' }}>{i.sku}</span></td>
               <td>
                 <div style={{ fontWeight: 500 }}>{i.name}</div>
