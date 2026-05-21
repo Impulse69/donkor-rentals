@@ -26,7 +26,7 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
     return undefined;
   }, []);
 
-  function handleRestart() {
+  function handleRestart(): void {
     if (window.donkor?.settings?.restartAndInstall) {
       void window.donkor.settings.restartAndInstall();
     }
@@ -39,9 +39,9 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
 
   return (
     <div className="shell">
-      <aside className="shell-sidebar">
+      <aside className="shell-sidebar" aria-label="Primary">
         <Mark />
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" aria-label="Sections">
           {NAV_SECTIONS.map((section) => (
             <div key={section}>
               <div className="sidebar-section">{section}</div>
@@ -52,49 +52,31 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
                   end={r.path === '/'}
                   className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
                 >
-                  <span className="glyph">{r.nav?.glyph}</span>
+                  <span className="glyph" aria-hidden>{r.nav?.glyph}</span>
                   <span>{r.nav?.label}</span>
                   <span className="count" />
                 </NavLink>
               ))}
             </div>
           ))}
-          <div style={{ flex: 1 }} />
         </nav>
         {updateVersion && (
-          <div className="update-sidebar-badge" style={{
-            margin: '0 16px 16px 16px',
-            padding: '12px',
-            background: 'rgba(212, 163, 89, 0.1)',
-            border: '1px solid var(--gold-deep)',
-            borderRadius: '6px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px'
-          }}>
-            <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--ink)' }}>
-              ✨ Update v{updateVersion} downloaded!
-            </div>
-            <button onClick={handleRestart} style={{
-              background: 'var(--gold-deep)',
-              color: 'var(--paper)',
-              border: 'none',
-              padding: '6px',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '11px',
-              textAlign: 'center',
-              width: '100%'
-            }}>
-              Restart &amp; Install
+          <div className="sidebar-update" role="status">
+            <span className="h">Update ready · v{updateVersion}</span>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={handleRestart}
+              style={{ width: '100%' }}
+            >
+              Restart &amp; install
             </button>
           </div>
         )}
         <Foot />
       </aside>
 
-      <header className="shell-topbar">
+      <header className="shell-topbar" role="banner">
         <Crumbs trail={crumbs} />
         <div className="topbar-spacer" />
         <Search />
@@ -102,7 +84,7 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
         <UserChip />
       </header>
 
-      <main className="shell-main">
+      <main className="shell-main" id="main" role="main">
         <ErrorBoundary key={location.pathname}>{children}</ErrorBoundary>
       </main>
     </div>
@@ -111,10 +93,12 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
 
 function Mark(): JSX.Element {
   return (
-    <Link to="/" className="sidebar-mark" style={{ display: 'block', textDecoration: 'none' }}>
-      <span className="ampersand">&amp;</span>
-      <div className="name">Donkor &amp; Sons</div>
-      <div className="sub">Rentals · Hearses</div>
+    <Link to="/" className="sidebar-mark" aria-label="Donkor & Sons — overview">
+      <span className="mark-glyph" aria-hidden>D&amp;S</span>
+      <span className="mark-stack">
+        <span className="name">Donkor &amp; Sons</span>
+        <span className="sub">Rentals</span>
+      </span>
     </Link>
   );
 }
@@ -127,7 +111,7 @@ function Foot(): JSX.Element {
   return (
     <div className="sidebar-foot">
       <span>v{version}</span>
-      <span>Phase 4</span>
+      <span>Local</span>
     </div>
   );
 }
@@ -140,7 +124,7 @@ function Crumbs({ trail }: { trail: Array<{ to: string; label: string }> }): JSX
         return (
           <span key={c.to} className="row" style={{ gap: 6 }}>
             {!isLast ? <Link to={c.to}>{c.label}</Link> : <span className="current">{c.label}</span>}
-            {!isLast && <span className="sep">/</span>}
+            {!isLast && <span className="sep" aria-hidden>/</span>}
           </span>
         );
       })}
@@ -154,7 +138,7 @@ function Search(): JSX.Element {
   const [q, setQ] = useState('');
 
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
+    function onKey(e: KeyboardEvent): void {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         ref.current?.focus();
@@ -173,7 +157,7 @@ function Search(): JSX.Element {
 
   return (
     <form className="topbar-search" onSubmit={onSubmit} role="search">
-      <span aria-hidden style={{ fontSize: 13 }}>⌕</span>
+      <span aria-hidden style={{ fontSize: 13, lineHeight: 1 }}>⌕</span>
       <input
         ref={ref}
         value={q}
@@ -181,7 +165,7 @@ function Search(): JSX.Element {
         placeholder="Search catalog, customers, bookings…"
         aria-label="Global search"
       />
-      <span className="kbd">Ctrl K</span>
+      <span className="kbd" aria-hidden>Ctrl K</span>
     </form>
   );
 }
@@ -220,7 +204,7 @@ function SyncPill(): JSX.Element {
       className={`sync-pill ${klass}`}
       title={status?.lastError ?? (status?.configured ? 'Cloud sync is configured' : 'Cloud sync is not configured')}
     >
-      <span className="dot" />
+      <span className="dot" aria-hidden />
       {label}
     </Link>
   );
@@ -242,8 +226,8 @@ function UserChip(): JSX.Element {
   const title = session ? `${session.user.email} · ${session.user.role}` : 'Complete first-run setup';
 
   return (
-    <Link to="/settings" className="user-chip" title={title} style={{ textDecoration: 'none', color: 'inherit' }}>
-      <Avatar name={label} size={26} />
+    <Link to="/settings" className="user-chip" title={title}>
+      <Avatar name={label} size={24} />
       <span>{label}</span>
     </Link>
   );
