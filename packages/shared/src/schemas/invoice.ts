@@ -54,6 +54,8 @@ export const InvoiceLineCreateInput = InvoiceLine.omit({
   deleted_at: true,
 });
 
+const PaymentTermPercent = z.number().int().min(0).max(100);
+
 export const Invoice = z.object({
   id: Uuid,
   tenant_id: Uuid,
@@ -66,6 +68,12 @@ export const Invoice = z.object({
   tax_pesewas: Pesewas,
   discount_pesewas: Pesewas,
   total_pesewas: Pesewas,
+  include_statutory_taxes: z.boolean(),
+  nhil_pesewas: Pesewas,
+  getfund_pesewas: Pesewas,
+  vat_pesewas: Pesewas,
+  initial_payment_percent: PaymentTermPercent,
+  before_delivery_percent: PaymentTermPercent,
   notes: z.string().max(2000).nullable(),
   created_at: IsoDateTime,
   updated_at: IsoDateTime,
@@ -75,7 +83,9 @@ export const Invoice = z.object({
 export const InvoiceCreateFromBooking = z.object({
   booking_id: Uuid,
   due_at: IsoDateTime.nullable().optional(),
-  tax_pesewas: Pesewas.optional().default(0),
+  include_statutory_taxes: z.boolean().optional().default(true),
+  initial_payment_percent: PaymentTermPercent.optional().default(50),
+  before_delivery_percent: PaymentTermPercent.optional().default(50),
   discount_pesewas: Pesewas.optional().default(0),
   notes: z.string().max(2000).nullable().optional(),
 });
@@ -83,7 +93,9 @@ export const InvoiceCreateFromBooking = z.object({
 export const InvoiceUpdateInput = z.object({
   status: InvoiceStatus.optional(),
   due_at: IsoDateTime.nullable().optional(),
-  tax_pesewas: Pesewas.optional(),
+  include_statutory_taxes: z.boolean().optional(),
+  initial_payment_percent: PaymentTermPercent.optional(),
+  before_delivery_percent: PaymentTermPercent.optional(),
   discount_pesewas: Pesewas.optional(),
   notes: z.string().max(2000).nullable().optional(),
 });
