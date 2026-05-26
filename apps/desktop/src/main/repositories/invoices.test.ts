@@ -361,4 +361,73 @@ describe('applyStatutoryOverride — print-time format swap', () => {
   it('no-op when the override matches the persisted flag', () => {
     expect(applyStatutoryOverride(statutory, true)).toBe(statutory);
   });
+
+  it('rebases balance_due_pesewas on the new total while preserving amount_paid_pesewas', () => {
+    // 50k already paid against the statutory total of 120,750 → balance 70,750.
+    const partiallyPaid: InvoiceTemplateData = {
+      ...statutory,
+      amount_paid_pesewas: 50_000,
+      balance_due_pesewas: 70_750,
+    };
+    const off = applyStatutoryOverride(partiallyPaid, false);
+    expect(off.amount_paid_pesewas).toBe(50_000); // payments are sticky
+    expect(off.total_pesewas).toBe(100_000);      // simple total = subtotal
+    expect(off.balance_due_pesewas).toBe(50_000); // 100,000 − 50,000
+  });
+});
+
+describe('renderInvoiceHtml — payment history ledger', () => {
+  const withPayments: InvoiceTemplateData = {
+    number: 'INV-LDG-1', status: 'issued',
+    issued_at: '2026-05-20T10:00:00.000Z', due_at: '2026-05-27T10:00:00.000Z', notes: null,
+    customer_name: 'Acme Events Ltd.',
+    subtotal_pesewas: 100_000, discount_pesewas: 0, total_pesewas: 120_750,
+    include_statutory_taxes: true, nhil_pesewas: 2_500, getfund_pesewas: 2_500, vat_pesewas: 15_750,
+    initial_payment_percent: 60, before_delivery_percent: 40,
+    lines: [{ description: 'Stack chairs', quantity: 100, unit_price_pesewas: 1_000, line_total_pesewas: 100_000 }],
+    payments: [
+      { paid_at: '2026-05-10T09:00:00.000Z', kind: 'deposit', method: 'cash',          reference: null,          amount_pesewas: 30_000 },
+      { paid_at: '2026-05-15T11:30:00.000Z', kind: 'payment', method: 'mobile_money',  reference: 'MTN-XYZ-987', amount_pesewas: 40_000 },
+    ],
+    amount_paid_pesewas: 70_000,
+    balance_due_pesewas: 50_750,
+  };
+
+  it('renders each payment row with date, kind, method and reference', () => {
+    const html = renderInvoiceHtml(withPayments);
+    expect(html).toContain('Payment history');
+    expect(html).toContain('Deposit · Cash');
+    expect(html).toContain('Payment · Mobile Money');
+    expect(html).toContain('MTN-XYZ-987');
+    expect(html).toContain('GHC 300.00'); // first installment
+    expect(html).toContain('GHC 400.00'); // second installment
+  });
+
+  it('renders Amount Paid and Balance lines under Total Amount', () => {
+    const html = renderInvoiceHtml(withPayments);
+    expect(html).toContain('Amount Paid');
+    expect(html).toContain('GHC 700.00');   // amount_paid
+    expect(html).toContain('>Balance<');
+    expect(html).toContain('GHC 507.50');   // balance
+  });
+
+  it('handles invoices with no payments yet', () => {
+    const html = renderInvoiceHtml({ ...withPayments, payments: [], amount_paid_pesewas: 0, balance_due_pesewas: 120_750 });
+    expect(html).toContain('No payments received yet');
+    expect(html).toContain('>Amount Paid<');
+    expect(html).toContain('>Balance<');
+  });
+
+  it('renders refunds as negatives', () => {
+    const html = renderInvoiceHtml({
+      ...withPayments,
+      payments: [
+        { paid_at: '2026-05-20T11:00:00.000Z', kind: 'refund', method: 'bank', reference: null, amount_pesewas: 10_000 },
+      ],
+      amount_paid_pesewas: -10_000,
+      balance_due_pesewas: 130_750,
+    });
+    expect(html).toContain('Refund · Bank');
+    expect(html).toContain('−GHC 100.00');
+  });
 });

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAsync } from '../../lib/useAsync';
 import { api } from '../../lib/api';
@@ -21,10 +22,16 @@ export default function InvoicesList(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const status = (searchParams.get('status') ?? 'all') as InvoiceStatus | 'all';
+  const search = searchParams.get('q') ?? '';
+  // Local draft so typing doesn't refetch on every keystroke; commit on submit.
+  const [draft, setDraft] = useState(search);
 
   const list = useAsync(
-    () => api.invoices.list({ ...(status !== 'all' ? { status: status as InvoiceStatus } : {}) }),
-    [status],
+    () => api.invoices.list({
+      ...(status !== 'all' ? { status: status as InvoiceStatus } : {}),
+      ...(search ? { search } : {}),
+    }),
+    [status, search],
   );
 
   function setParam(name: string, value: string): void {
@@ -32,6 +39,11 @@ export default function InvoicesList(): JSX.Element {
     if (value === '' || value === 'all') next.delete(name);
     else next.set(name, value);
     setSearchParams(next, { replace: true });
+  }
+
+  function submitSearch(e: React.FormEvent): void {
+    e.preventDefault();
+    setParam('q', draft.trim());
   }
 
   return (
@@ -47,7 +59,19 @@ export default function InvoicesList(): JSX.Element {
         </div>
       </header>
 
-      <div className="page-toolbar fade-up fade-up-1">
+      <form
+        key={search}
+        className="page-toolbar fade-up fade-up-1"
+        onSubmit={submitSearch}
+      >
+        <input
+          className="input"
+          style={{ flex: '1 1 0', minWidth: 0 }}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Search by client name or invoice number…"
+          aria-label="Search invoices"
+        />
         <select
           className="select"
           style={{ width: 180 }}
@@ -57,14 +81,28 @@ export default function InvoicesList(): JSX.Element {
         >
           {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-      </div>
+        <Button type="submit">Apply</Button>
+        {(search || status !== 'all') && (
+          <Button
+            variant="ghost"
+            type="button"
+            onClick={() => { setDraft(''); setSearchParams({}, { replace: true }); }}
+          >
+            Clear
+          </Button>
+        )}
+      </form>
 
       <div className="fade-up fade-up-2">
         <AsyncList
           state={list}
           loadingLabel="Pulling the ledger…"
-          emptyTitle="No invoices yet"
-          emptyBody="Generate the first invoice from a booking detail page."
+          emptyTitle={search || status !== 'all' ? 'No matching invoices' : 'No invoices yet'}
+          emptyBody={search
+            ? `Nothing matches "${search}". Try a different name or invoice number.`
+            : status !== 'all'
+              ? 'Nothing in this status. Try a different filter or generate a new invoice from a booking.'
+              : 'Generate the first invoice from a booking detail page.'}
           emptyAction={<Link to={paths.bookings.list}><Button variant="primary">Open bookings</Button></Link>}
         >
           {(rows) => (
