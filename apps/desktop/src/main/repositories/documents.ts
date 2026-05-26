@@ -123,6 +123,10 @@ export function applyStatutoryOverride(
   if (invoice.include_statutory_taxes === includeStatutory) return invoice;
   const subtotal = invoice.subtotal_pesewas;
   const discount = invoice.discount_pesewas;
+  // Payments are recorded against the persisted invoice; the override changes
+  // the printed total but not the cash already received, so we rebase balance
+  // on the new total without touching amount_paid_pesewas.
+  const amountPaid = invoice.amount_paid_pesewas ?? 0;
   if (includeStatutory) {
     const nhil = Math.round(subtotal * 0.025);
     const getfund = Math.round(subtotal * 0.025);
@@ -135,15 +139,18 @@ export function applyStatutoryOverride(
       getfund_pesewas: getfund,
       vat_pesewas: vat,
       total_pesewas: total,
+      balance_due_pesewas: total - amountPaid,
     };
   }
+  const total = Math.max(0, subtotal - discount);
   return {
     ...invoice,
     include_statutory_taxes: false,
     nhil_pesewas: 0,
     getfund_pesewas: 0,
     vat_pesewas: 0,
-    total_pesewas: Math.max(0, subtotal - discount),
+    total_pesewas: total,
+    balance_due_pesewas: total - amountPaid,
   };
 }
 
@@ -169,6 +176,17 @@ export interface InvoiceTemplateData {
     unit_price_pesewas: number;
     line_total_pesewas: number;
   }>;
+  // Payment ledger — printed under "Total Amount" so the client sees every
+  // installment with its date/method/reference, plus the running balance.
+  payments?: Array<{
+    paid_at: string;
+    kind: 'deposit' | 'payment' | 'refund';
+    method: string;
+    reference: string | null;
+    amount_pesewas: number;
+  }>;
+  amount_paid_pesewas?: number;
+  balance_due_pesewas?: number;
 }
 
 /**
@@ -212,6 +230,44 @@ export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
       ${invoice.discount_pesewas > 0 ? `<tr><td class="lbl">Discount</td><td class="amt">− GHC ${fmtMoney(invoice.discount_pesewas)}</td></tr>` : ''}
       <tr class="grand"><td class="lbl">Total Amount</td><td class="amt">GHC ${fmtMoney(invoice.total_pesewas)}</td></tr>
     `;
+
+  // Payment ledger — listed as installments under Total Amount, then
+  // "Amount Paid" rollup and the "Balance" line. Refunds show as negatives.
+  const payments = invoice.payments ?? [];
+  const amountPaid = invoice.amount_paid_pesewas ?? 0;
+  const balance = invoice.balance_due_pesewas ?? (invoice.total_pesewas - amountPaid);
+  const PAYMENT_KIND_LABEL: Record<string, string> = {
+    deposit: 'Deposit',
+    payment: 'Payment',
+    refund: 'Refund',
+  };
+  const METHOD_LABEL: Record<string, string> = {
+    cash: 'Cash',
+    mobile_money: 'Mobile Money',
+    bank: 'Bank',
+    card: 'Card',
+    other: 'Other',
+  };
+  const paymentHistoryRows = payments.length === 0
+    ? `<tr class="ledger-empty"><td class="lbl" colspan="2"><em>No payments received yet.</em></td></tr>`
+    : payments.map((p) => {
+        const sign = p.kind === 'refund' ? '−' : '';
+        const refSuffix = p.reference ? ` <span class="ref">· ${escape(p.reference)}</span>` : '';
+        return `
+          <tr class="ledger-row">
+            <td class="lbl">
+              <span class="pdate">${fmtDate(p.paid_at)}</span>
+              <span class="pmeta">${PAYMENT_KIND_LABEL[p.kind] ?? p.kind} · ${METHOD_LABEL[p.method] ?? p.method}${refSuffix}</span>
+            </td>
+            <td class="amt">${sign}GHC ${fmtMoney(p.amount_pesewas)}</td>
+          </tr>`;
+      }).join('');
+  const ledgerRows = `
+    <tr class="ledger-header"><td class="lbl" colspan="2">Payment history</td></tr>
+    ${paymentHistoryRows}
+    <tr class="paid"><td class="lbl">Amount Paid</td><td class="amt">GHC ${fmtMoney(amountPaid)}</td></tr>
+    <tr class="balance"><td class="lbl">Balance</td><td class="amt">GHC ${fmtMoney(Math.max(0, balance))}</td></tr>
+  `;
 
   return `<!doctype html>
 <html>
@@ -360,6 +416,55 @@ export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
       font-size: 13px;
       color: #111827;
     }
+    .totals tr.ledger-header td {
+      padding-top: 14px;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #6b7280;
+      font-weight: 700;
+      border-top: 1px dashed #d1d5db;
+    }
+    .totals tr.ledger-row td {
+      padding: 4px 8px;
+      font-size: 11.5px;
+      vertical-align: top;
+    }
+    .totals tr.ledger-row td.lbl { color: #1f2937; line-height: 1.35; }
+    .totals tr.ledger-row td.lbl .pdate {
+      display: block;
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      color: #111827;
+    }
+    .totals tr.ledger-row td.lbl .pmeta {
+      display: block;
+      color: #6b7280;
+      font-size: 10.5px;
+    }
+    .totals tr.ledger-row td.lbl .ref {
+      color: #6b7280;
+      font-family: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+      font-size: 10px;
+    }
+    .totals tr.ledger-empty td {
+      padding: 6px 8px 4px;
+      color: #9ca3af;
+      font-size: 11px;
+    }
+    .totals tr.paid td {
+      border-top: 1px solid #e5e7eb;
+      padding-top: 6px;
+      color: #446644;
+      font-weight: 600;
+    }
+    .totals tr.balance td {
+      border-top: 2px solid #B8860B;
+      padding-top: 7px;
+      font-weight: 800;
+      font-size: 14px;
+      color: #111827;
+    }
     .note {
       margin-top: 18px;
       font-size: 11px;
@@ -446,6 +551,7 @@ export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
       <div class="totals">
         <table>
           ${statutoryRows}
+          ${ledgerRows}
         </table>
       </div>
     </div>
