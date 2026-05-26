@@ -11,10 +11,10 @@ export function NotFound(): JSX.Element {
         <h1 className="page-title">No record of this route.</h1>
         <p className="muted" style={{ marginTop: 12, lineHeight: 1.55 }}>
           The path <code className="mono">{pathname}</code> doesn&rsquo;t resolve to a screen in
-          this build. Use the sidebar to navigate, or return to the workspace overview.
+          this build. Use the sidebar to navigate, or return to the dashboard.
         </p>
         <div className="row" style={{ marginTop: 20 }}>
-          <Link to={paths.home}><Button variant="primary">Back to overview</Button></Link>
+          <Link to={paths.home}><Button variant="primary">Back to dashboard</Button></Link>
           <Link to={paths.catalog.list}><Button variant="ghost">Open catalog</Button></Link>
         </div>
       </div>

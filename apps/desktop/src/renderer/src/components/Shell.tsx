@@ -94,7 +94,7 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
 
 function Mark(): JSX.Element {
   return (
-    <Link to="/" className="sidebar-mark" aria-label="Donkor & Sons — overview">
+    <Link to="/" className="sidebar-mark" aria-label="Donkor & Sons — dashboard">
       <img src={logoUrl} alt="" className="mark-logo" />
       <span className="mark-stack">
         <span className="sub">Rentals</span>
