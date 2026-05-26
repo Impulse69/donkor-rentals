@@ -58,8 +58,8 @@ export const routes: RouteDef[] = [
   {
     path: '/',
     element: Dashboard,
-    crumb: 'Overview',
-    nav: { label: 'Overview', glyph: '00', section: 'WORKSPACE' },
+    crumb: 'Dashboard',
+    nav: { label: 'Dashboard', glyph: '00', section: 'WORKSPACE' },
   },
 
   {
