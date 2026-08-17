@@ -20,8 +20,7 @@
   "dependencies": {
     "@donkor/db": "workspace:*",
     "@donkor/shared": "workspace:*",
-    "@fontsource-variable/fraunces": "^5.0.20",
-    "@fontsource-variable/public-sans": "^5.0.18",
+    "@fontsource-variable/open-sans": "^5.0.20",
     "@fontsource/jetbrains-mono": "^5.0.20",
     "better-sqlite3": "^11.0.0",
     "bindings": "^1.5.0",

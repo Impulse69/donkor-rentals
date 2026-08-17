@@ -276,7 +276,10 @@ export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
   <style>
     * { box-sizing: border-box; }
     body {
-      font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      /* Printed documents open in the user's external browser, so this resolves
+         against system fonts — the bundled webfont is not available there. Named
+         to match the app's typography for when Phase 7 embeds the face. */
+      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       color: #1f2937;
       margin: 0;
       padding: 32px 36px;
@@ -808,7 +811,7 @@ function renderHtmlDocument(options: DocumentOptions): string {
   <style>
     * { box-sizing: border-box; }
     body {
-      font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       color: #1F2937;
       margin: 0;
       padding: 40px;

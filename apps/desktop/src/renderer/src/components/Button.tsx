@@ -1,16 +1,17 @@
-import { forwardRef, type ButtonHTMLAttributes } from 'react';
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { Dropdown } from './Dropdown';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'link';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
-interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   loading?: boolean;
   leading?: React.ReactNode;
 }
 
-export const Button = forwardRef<HTMLButtonElement, Props>(function Button(
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'secondary', size = 'md', loading, leading, className, children, disabled, ...rest },
   ref,
 ) {
@@ -30,3 +31,52 @@ export const Button = forwardRef<HTMLButtonElement, Props>(function Button(
     </button>
   );
 });
+
+interface SplitButtonProps extends Omit<ButtonProps, 'variant'> {
+  menu: ReactNode;
+  menuAlign?: 'start' | 'end';
+}
+
+export function SplitButton({
+  menu,
+  menuAlign = 'end',
+  size = 'md',
+  loading,
+  disabled,
+  className,
+  children,
+  ...rest
+}: SplitButtonProps): JSX.Element {
+  const cls = ['split-btn', `split-btn-${size}`, className ?? ''].filter(Boolean).join(' ');
+  const isDisabled = disabled || loading;
+
+  return (
+    <span className={cls}>
+      <Button
+        {...rest}
+        variant="primary"
+        size={size}
+        loading={loading}
+        disabled={isDisabled}
+        className="split-btn-main"
+      >
+        {children}
+      </Button>
+      <Dropdown
+        align={menuAlign}
+        trigger={
+          <button
+            type="button"
+            className={`split-btn-caret btn-${size}`}
+            disabled={isDisabled}
+            aria-label="More actions"
+          >
+            <span aria-hidden="true">▾</span>
+          </button>
+        }
+      >
+        {menu}
+      </Dropdown>
+    </span>
+  );
+}
