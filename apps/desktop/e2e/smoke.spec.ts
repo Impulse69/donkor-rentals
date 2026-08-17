@@ -18,7 +18,32 @@ test.beforeAll(async () => {
     args: [path.join(__dirname, '..', 'out', 'main', 'index.js')],
   });
   win = await app.firstWindow();
+
+  // A database with no company profile opens on the first-run wizard rather
+  // than the shell, so the run is not reproducible unless we handle both. This
+  // also gives the wizard — new in 1.2.0, and otherwise untested — real
+  // coverage: it replaced the old owner-account login.
+  // Wait for the renderer to mount before deciding which screen we are on.
+  // `isVisible()` does not auto-wait, so checking it immediately after launch
+  // reports false and skips the wizard even when it is about to appear.
+  const wizard = win.locator('form:has-text("Set up your company")');
+  await Promise.race([
+    wizard.waitFor({ state: 'visible', timeout: 20_000 }).catch(() => null),
+    win.waitForSelector('.shell', { timeout: 20_000 }).catch(() => null),
+  ]);
+
+  if (await wizard.count()) {
+    await wizard.getByLabel(/Company name/).fill('Donkor & Sons');
+    await wizard.getByRole('button', { name: 'Save company setup' }).click();
+  }
+
   await win.waitForSelector('.shell', { timeout: 20_000 });
+});
+
+test('first run reaches the shell without asking anyone to log in', async () => {
+  await expect(win.locator('.shell')).toBeVisible();
+  // Authentication was removed in 1.2.0 — nothing should ask for credentials.
+  await expect(win.locator('input[type="password"]')).toHaveCount(0);
 });
 
 test.afterAll(async () => {
@@ -61,13 +86,15 @@ test('+ New opens and every entry targets a route that renders', async () => {
 });
 
 test('navigates every converted screen without an error boundary', async () => {
+  // Nav label -> page heading. Two screens deliberately keep domain copy for
+  // their heading rather than echoing the nav label, so this is not a 1:1 map.
   const screens: Array<[string, string]> = [
     ['Invoices', 'Invoices'],
     ['Customers', 'Customers'],
     ['Bookings', 'Bookings'],
     ['Products and Services', 'Products and Services'],
-    ['Returns', 'Returns'],
-    ['Reports', 'Reports'],
+    ['Returns', 'Damage and deposits'],
+    ['Reports', 'Revenue and operations'],
   ];
 
   for (const [navLabel, heading] of screens) {

@@ -1,13 +1,13 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAsync } from '../../lib/useAsync';
 import { api } from '../../lib/api';
-import { formatDateTime, relTime } from '../../lib/format';
+import { formatDate, formatGhs } from '../../lib/format';
 import { paths } from '../../router/paths';
-import { Button } from '../../components/Button';
-import { Badge } from '../../components/Badge';
+import { Button, SplitButton } from '../../components/Button';
+import { Dropdown } from '../../components/Dropdown';
 import { AsyncList } from '../../components/AsyncList';
-import { BOOKING_STATUS_LABELS, type BookingStatus } from '@shared/schemas';
-import { bookingStatusTone, daysCovered } from './helpers';
+import { StatusPill } from '../../components/StatusPill';
+import { type BookingStatus } from '@shared/schemas';
 
 const STATUS_OPTIONS: ReadonlyArray<{ value: BookingStatus | 'all'; label: string }> = [
   { value: 'all', label: 'All statuses' },
@@ -21,12 +21,22 @@ const STATUS_OPTIONS: ReadonlyArray<{ value: BookingStatus | 'all'; label: strin
 interface Row {
   id: string;
   status: BookingStatus;
-  customer_name: string;
+  customer_name?: string | null;
+  renter_name?: string | null;
   starts_at: string;
   ends_at: string;
   notes: string | null;
-  driver_name: string | null;
-  updated_at: string;
+  total_pesewas?: number | null;
+  lines?: Array<unknown>;
+}
+
+function customerLabel(row: { customer_name?: string | null; renter_name?: string | null }): string {
+  return row.customer_name?.trim() || row.renter_name?.trim() || 'Walk-in rental';
+}
+
+function itemsLabel(row: Row): string {
+  if (!row.lines) return '--';
+  return `${row.lines.length} item${row.lines.length === 1 ? '' : 's'}`;
 }
 
 export default function BookingsList(): JSX.Element {
@@ -50,7 +60,7 @@ export default function BookingsList(): JSX.Element {
     <div className="page fade-up">
       <header className="page-head">
         <div>
-          <div className="page-eyebrow">Operations · Calendar</div>
+          <div className="page-eyebrow">Operations / Calendar</div>
           <h1 className="page-title">Bookings</h1>
           <p className="muted" style={{ marginTop: 8, maxWidth: 540, lineHeight: 1.55 }}>
             Quotes, reservations, and the trips on the road. Switch to the calendar for an
@@ -59,11 +69,11 @@ export default function BookingsList(): JSX.Element {
         </div>
         <div className="page-actions">
           <Link to={paths.bookings.calendar}><Button>Calendar view</Button></Link>
-          <Link to={paths.bookings.new}><Button variant="primary">+ New booking</Button></Link>
+          <Link to={paths.bookings.new}><Button variant="primary">New booking</Button></Link>
         </div>
       </header>
 
-      <div className="page-toolbar fade-up fade-up-1">
+      <div className="dtable-toolbar fade-up fade-up-1">
         <select
           className="select"
           style={{ width: 200 }}
@@ -90,7 +100,11 @@ export default function BookingsList(): JSX.Element {
           emptyAction={<Link to={paths.bookings.new}><Button variant="primary">New booking</Button></Link>}
         >
           {(rows) => (
-            <BookingsTable rows={rows as Row[]} onRowClick={(b) => navigate(paths.bookings.detail(b.id))} />
+            <BookingsTable
+              rows={rows as Row[]}
+              onView={(b) => navigate(paths.bookings.detail(b.id))}
+              onNavigate={navigate}
+            />
           )}
         </AsyncList>
       </div>
@@ -98,18 +112,30 @@ export default function BookingsList(): JSX.Element {
   );
 }
 
-function BookingsTable({ rows, onRowClick }: { rows: Row[]; onRowClick: (b: Row) => void }): JSX.Element {
+function BookingsTable({
+  rows,
+  onView,
+  onNavigate,
+}: {
+  rows: Row[];
+  onView: (b: Row) => void;
+  onNavigate: (path: string) => void;
+}): JSX.Element {
+  const hasItems = rows.some((b) => Array.isArray(b.lines));
+  const hasTotals = rows.some((b) => typeof b.total_pesewas === 'number');
+
   return (
     <div className="dtable-wrap">
       <table className="dtable">
         <thead>
           <tr>
-            <th style={{ width: 120 }}>Status</th>
+            <th style={{ width: 150 }}>Booking no./ref</th>
             <th>Customer</th>
-            <th>Window</th>
-            <th className="num">Days</th>
-            <th>Driver</th>
-            <th>Modified</th>
+            <th style={{ width: 220 }}>Period</th>
+            {hasItems && <th style={{ width: 110 }}>Items</th>}
+            {hasTotals && <th className="num" style={{ width: 130 }}>Total</th>}
+            <th style={{ width: 120 }}>Status</th>
+            <th style={{ width: 190 }}>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -117,30 +143,56 @@ function BookingsTable({ rows, onRowClick }: { rows: Row[]; onRowClick: (b: Row)
             <tr
               key={b.id}
               tabIndex={0}
-              onClick={() => onRowClick(b)}
+              onClick={() => onView(b)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  onRowClick(b);
+                  onView(b);
                 }
               }}
             >
-              <td><Badge tone={bookingStatusTone(b.status)}>{BOOKING_STATUS_LABELS[b.status]}</Badge></td>
+              <td className="mono">{b.id.slice(0, 8)}</td>
               <td>
-                <div style={{ fontWeight: 500 }}>{b.customer_name}</div>
+                <div style={{ fontWeight: 500 }}>{customerLabel(b)}</div>
                 {b.notes && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{truncate(b.notes, 70)}</div>}
               </td>
               <td>
                 <div className="mono" style={{ fontSize: 12 }}>
-                  {formatDateTime(b.starts_at)}
-                  <span className="faint" aria-hidden> → </span>
-                  {formatDateTime(b.ends_at)}
+                  {formatDate(b.starts_at)}
+                  <span className="faint" aria-hidden> - </span>
+                  {formatDate(b.ends_at)}
                 </div>
               </td>
-              <td className="num">{daysCovered(b.starts_at, b.ends_at)}</td>
-              <td>{b.driver_name || <span className="faint">—</span>}</td>
-              <td>
-                <span className="muted" style={{ fontSize: 12 }}>{relTime(b.updated_at)}</span>
+              {hasItems && <td>{itemsLabel(b)}</td>}
+              {hasTotals && (
+                <td className="num">
+                  {typeof b.total_pesewas === 'number' ? formatGhs(b.total_pesewas) : <span className="faint">--</span>}
+                </td>
+              )}
+              <td><StatusPill status={b.status} /></td>
+              <td onClick={(e) => e.stopPropagation()}>
+                <SplitButton
+                  size="sm"
+                  onClick={() => onView(b)}
+                  menu={
+                    <>
+                      <Dropdown.Item onSelect={() => onView(b)}>View</Dropdown.Item>
+                      <Dropdown.Item onSelect={() => onNavigate(paths.bookings.edit(b.id))}>Edit</Dropdown.Item>
+                      {b.status !== 'cancelled' && (
+                        <Dropdown.Item onSelect={() => onNavigate(paths.invoices.fromBooking(b.id))}>
+                          Create invoice
+                        </Dropdown.Item>
+                      )}
+                      {b.status === 'out' && (
+                        <Dropdown.Item onSelect={() => onNavigate(`/returns/new/${b.id}`)}>
+                          Record return
+                        </Dropdown.Item>
+                      )}
+                    </>
+                  }
+                >
+                  View
+                </SplitButton>
               </td>
             </tr>
           ))}
@@ -151,5 +203,5 @@ function BookingsTable({ rows, onRowClick }: { rows: Row[]; onRowClick: (b: Row)
 }
 
 function truncate(s: string, n: number): string {
-  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+  return s.length > n ? `${s.slice(0, n - 1)}...` : s;
 }
