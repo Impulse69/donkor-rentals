@@ -92,6 +92,214 @@
   color: var(--ink);
 }
 
+/* === QBO invoice detail ===================================== */
+.invoice-page {
+  padding-bottom: 112px;
+}
+.invoice-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, auto);
+  align-items: end;
+  gap: var(--s-6);
+  padding: var(--s-5) 0 var(--s-6);
+  border-bottom: 1px solid var(--rule);
+}
+.invoice-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-1);
+}
+.invoice-title {
+  font-style: normal;
+  margin: 0;
+}
+.invoice-subline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+  color: var(--ink-mute);
+}
+.invoice-balance-box {
+  text-align: right;
+}
+.invoice-balance-box span,
+.invoice-meta-label {
+  display: block;
+  color: var(--ink-mute);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.invoice-balance-box strong {
+  display: block;
+  margin-top: var(--s-1);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: clamp(30px, 4vw, 46px);
+  line-height: 1;
+}
+.invoice-meta-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  gap: var(--s-5);
+  align-items: start;
+  margin-top: var(--s-5);
+  padding: var(--s-5);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+}
+.invoice-meta-band strong {
+  display: block;
+  margin: var(--s-1) 0;
+  font-size: var(--t-lg);
+}
+.invoice-meta-band a {
+  font-size: var(--t-sm);
+}
+.invoice-meta-dates {
+  display: grid;
+  gap: var(--s-1);
+}
+.invoice-sheet {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--s-5);
+  align-items: start;
+  margin-top: var(--s-5);
+}
+.invoice-lines .dtable tbody tr {
+  cursor: default;
+}
+.invoice-summary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: var(--s-5);
+  align-items: start;
+  padding: var(--s-4) 0 var(--s-2);
+}
+.invoice-format-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  font-size: var(--t-sm);
+}
+.invoice-totals {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.invoice-totals td {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  color: var(--ink-mute);
+}
+.invoice-totals td.num {
+  text-align: right;
+  color: var(--ink);
+  font-family: var(--font-mono);
+}
+.invoice-totals .is-total td {
+  color: var(--ink);
+  font-weight: 700;
+}
+.invoice-totals .is-balance td {
+  border-bottom: none;
+  color: var(--ink);
+  font-size: var(--t-lg);
+  font-weight: 800;
+}
+.invoice-notes {
+  margin-top: var(--s-4);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+}
+.invoice-section-title {
+  margin-top: var(--s-7);
+}
+.invoice-empty-row {
+  margin-top: var(--s-2);
+  padding: var(--s-5);
+  color: var(--ink-mute);
+  font-style: italic;
+  background: var(--panel);
+  border: 1px dashed var(--rule);
+  border-radius: var(--r-md);
+}
+.invoice-payment-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+.invoice-support {
+  display: grid;
+  gap: var(--s-4);
+}
+.invoice-support h3 {
+  margin: var(--s-2) 0 var(--s-3);
+}
+.invoice-actionbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin: var(--s-7) calc(var(--s-5) * -1) 0;
+  padding: var(--s-3) var(--s-5);
+  background: color-mix(in srgb, var(--panel) 96%, transparent);
+  border-top: 1px solid var(--rule);
+  box-shadow: 0 -8px 18px rgba(30, 31, 33, 0.08);
+  backdrop-filter: blur(8px);
+}
+.invoice-actionbar-left,
+.invoice-actionbar-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.invoice-actionbar-right {
+  justify-content: flex-end;
+}
+
+@media (max-width: 860px) {
+  .invoice-hero,
+  .invoice-meta-band,
+  .invoice-sheet,
+  .invoice-summary-row {
+    grid-template-columns: 1fr;
+  }
+  .invoice-balance-box {
+    text-align: left;
+  }
+  .invoice-actionbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .invoice-actionbar-left,
+  .invoice-actionbar-right {
+    justify-content: flex-start;
+  }
+}
+
+@media print {
+  .invoice-actionbar {
+    display: none !important;
+  }
+  .invoice-page {
+    padding-bottom: 0;
+  }
+}
+
 /* === Button =================================================== */
 .btn {
   display: inline-flex;
