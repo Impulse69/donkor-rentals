@@ -41,6 +41,27 @@ function applyMigrations(database: DB): void {
       .map((row) => (row as { id: string }).id),
   );
 
+  // Refuse to run against a database built by a schema we no longer ship.
+  //
+  // The baseline is written entirely as CREATE TABLE IF NOT EXISTS, so against a
+  // database carrying the old 0001..0009 migrations it applies cleanly, does
+  // nothing, and records itself as applied — leaving a hybrid schema that fails
+  // much later with a baffling "no such column" from unrelated code. Failing
+  // here, with the reason and the fix, costs one confusing crash instead of an
+  // afternoon. (This has already been hit twice: once on the dev database and
+  // once on the default Electron userData directory during e2e.)
+  const known = new Set(files.map((f) => f.replace(/\.sql$/, '')));
+  const orphaned = [...seen].filter((id) => !known.has(id)).sort();
+  if (orphaned.length > 0) {
+    throw new Error(
+      `This database was created by an older schema (${orphaned.join(', ')}) that this ` +
+        `version no longer ships. The current baseline replaces those migrations wholesale, ` +
+        `so there is no upgrade path. Delete the database and relaunch to start clean:\n` +
+        `  ${dbPath()}\n` +
+        `(also remove the matching -wal and -shm files).`,
+    );
+  }
+
   const insert = database.prepare('INSERT INTO _migrations (id, applied_at) VALUES (?, ?)');
   for (const file of files) {
     const id = file.replace(/\.sql$/, '');
