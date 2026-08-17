@@ -33,7 +33,11 @@ export const paths = {
   },
   invoices: {
     list: '/invoices',
+    new: '/invoices/new',
     detail: (id: string) => `/invoices/${id}`,
     fromBooking: (bookingId: string) => `/invoices/new?from=${encodeURIComponent(bookingId)}`,
+  },
+  returns: {
+    list: '/returns',
   },
 } as const;

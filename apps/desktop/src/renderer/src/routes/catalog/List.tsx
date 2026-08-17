@@ -60,13 +60,13 @@ export default function CatalogList(): JSX.Element {
       <header className="page-head">
         <div>
           <div className="page-eyebrow">Operations · Inventory</div>
-          <h1 className="page-title">Catalog</h1>
+          <h1 className="page-title">Products and Services</h1>
           <p className="muted" style={{ marginTop: 8, maxWidth: 540 }}>
             Everything Donkor & Sons rents — from chairs and tents to hearses. Add, edit, retire.
           </p>
         </div>
         <div className="page-actions">
-          <Link to={paths.catalog.new}><Button variant="primary">+ New item</Button></Link>
+          <Link to={paths.catalog.new}><Button variant="primary">+ New product or service</Button></Link>
         </div>
       </header>
 
@@ -77,7 +77,7 @@ export default function CatalogList(): JSX.Element {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Search by name or SKU…"
-          aria-label="Search catalog"
+          aria-label="Search products and services"
         />
         <select
           className="select"

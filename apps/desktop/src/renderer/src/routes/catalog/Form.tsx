@@ -127,8 +127,8 @@ export default function CatalogForm(): JSX.Element {
       <div className="page">
         <EmptyState
           title="Item not found"
-          body="It may have been retired or removed. Head back to the catalog to pick another."
-          actions={<Link to={paths.catalog.list}><Button variant="primary">Back to catalog</Button></Link>}
+          body="It may have been retired or removed. Head back to products and services to pick another."
+          actions={<Link to={paths.catalog.list}><Button variant="primary">Back to products and services</Button></Link>}
         />
       </div>
     );
@@ -139,7 +139,7 @@ export default function CatalogForm(): JSX.Element {
       <header className="page-head">
         <div>
           <div className="page-eyebrow">Operations · Inventory</div>
-          <h1 className="page-title">{editing ? 'Edit item' : 'Register an item'}</h1>
+          <h1 className="page-title">{editing ? 'Edit product or service' : 'Register a product or service'}</h1>
         </div>
       </header>
 

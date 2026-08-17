@@ -1,19 +1,17 @@
-# QuickBooks-Style Design System Phase 2
+# Phase 3 QBO Shell
 
 ## Plan
-- [x] Inventory scoped files, exports, money/status helpers, and token usages
-- [x] Rewrite token values while preserving token names used by components
-- [x] Swap renderer font dependency/imports to bundled Open Sans
-- [x] Update component CSS for QBO buttons, tables, tabs, modal chrome, and links
-- [x] Add typed SplitButton, MoneyBar, and StatusPill component exports
-- [ ] Run full verification: typecheck, lint, test, greps, and dev render smoke check
+- [x] Update route nav metadata, catalog naming, and breadcrumb depth.
+- [x] Add local inline sidebar icon map with no dependency changes.
+- [x] Rework Shell sidebar/topbar and + New dropdown while preserving search and update restart behavior.
+- [x] Restyle shell/sidebar/topbar/dropdowns using existing QBO tokens and keep print rules intact.
+- [ ] Verify route links, numeric glyph removal, typecheck, lint, and tests.
 
 ## Review
-- `pnpm.cmd typecheck` passed across workspace projects.
+- Implemented Tasks A-D in renderer scope only.
+- `pnpm.cmd typecheck` passed.
 - `pnpm.cmd lint` passed.
+- `grep -rn "'0[0-9]'" apps/desktop/src/renderer/src/router/routes.tsx` returned no output.
+- Static route check passed: requested sidebar routes and `+ New` targets exist in `routes.tsx`; forbidden future/admin nav labels are absent.
 - `pnpm.cmd test` passed `packages/shared` (4 files, 11 tests) and `packages/db` (no test files), then failed before desktop Vitest loaded because Electron-as-Node hit `EPERM: operation not permitted, lstat 'C:\Users\User'` in the managed sandbox.
-- `rg -n -- "--gold" apps` returned zero hits.
-- `rg -n -- "--paper-soft|--gold" apps` returned zero hits.
-- `rg -n "fonts.googleapis.com|fonts.gstatic.com" apps` returned zero hits.
-- `rg -n "fraunces" apps/desktop/package.json pnpm-lock.yaml` returned zero hits.
 - `pnpm.cmd dev` failed before app render because esbuild could not read above the worktree while loading `apps/desktop/electron.vite.config.ts`: `Cannot read directory "../../../../../../..": Access is denied.`
