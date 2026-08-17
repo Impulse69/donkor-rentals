@@ -49,7 +49,6 @@ const Returns = {
   Form: lazy(() => import('../routes/returns/Form')),
 };
 
-const Reconciliation = lazy(() => import('../routes/Reconciliation'));
 const Settings = lazy(() => import('../routes/Settings'));
 const Reports = lazy(() => import('../routes/Reports'));
 const Dashboard = lazy(() => import('../routes/Dashboard'));
@@ -102,12 +101,6 @@ export const routes: RouteDef[] = [
   { path: '/invoices/new', element: Invoices.New, crumb: 'New invoice' },
   { path: '/invoices/:id', element: Invoices.Detail, crumb: 'Invoice' },
 
-  {
-    path: '/reconciliation',
-    element: Reconciliation,
-    crumb: 'Reconciliation',
-    // nav: { label: 'Reconciliation', glyph: '07', section: 'ADMIN' },
-  },
   {
     path: '/returns',
     element: Returns.List,

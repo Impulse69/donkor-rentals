@@ -4,8 +4,7 @@ import log from 'electron-log/main';
 import { registerIpc } from './ipc';
 import { openDb, closeDb, getDb } from './db';
 import { seedIfEmpty } from './db/seed';
-import { getSupabaseClient } from './supabase/client';
-import { drainOutbox } from './sync/outbox';
+import { hasCompanyProfile } from './repositories/company';
 import { configureUpdates, stopUpdates } from './updates';
 import { captureCrash, configureCrashReporting } from './crash';
 
@@ -14,7 +13,6 @@ log.transports.file.level = 'info';
 log.info('Donkor Rentals — main process starting');
 
 const isDev = !app.isPackaged;
-let syncTimer: NodeJS.Timeout | null = null;
 
 function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -54,7 +52,7 @@ function createMainWindow(): BrowserWindow {
 app.whenReady().then(() => {
   try {
     openDb();
-    if (!app.isPackaged) seedIfEmpty(getDb());
+    if (!app.isPackaged && hasCompanyProfile(getDb())) seedIfEmpty(getDb());
   } catch (err) {
     log.error('failed to open database', err);
     app.exit(1);
@@ -63,10 +61,6 @@ app.whenReady().then(() => {
   registerIpc();
   configureCrashReporting(getDb());
   configureUpdates(getDb());
-  syncTimer = setInterval(() => {
-    void drainOutbox(getDb(), getSupabaseClient()).catch((err) => log.warn('background sync failed', err));
-  }, 30_000);
-  void drainOutbox(getDb(), getSupabaseClient()).catch((err) => log.warn('initial sync failed', err));
   createMainWindow();
 
   app.on('activate', () => {
@@ -79,7 +73,6 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
-  if (syncTimer) clearInterval(syncTimer);
   stopUpdates();
   closeDb();
 });

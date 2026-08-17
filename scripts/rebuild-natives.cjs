@@ -29,17 +29,10 @@ function resolveFrom(specifier, fromDir) {
 }
 
 function main() {
-  // Skip on CI: GitHub Actions / similar already use Node 22 where the bundled
-  // legacy `electron-rebuild` works during the `pnpm release` script. Running
-  // here would swap the host-Node prebuild for the Electron-ABI prebuild
-  // *before* `pnpm test` executes — and tests use host Node, not Electron.
-  // Detection is by env var so local users can force it: `CI=true` set by
-  // GitHub Actions / GitLab CI / etc.
-  if (process.env.CI === 'true' && process.env.DONKOR_FORCE_REBUILD !== '1') {
-    console.log('[rebuild-natives] CI detected — skipping (release script handles native rebuild).');
-    return;
-  }
-
+  // NOTE: this used to skip on CI so that `pnpm test` could keep a host-Node
+  // prebuild. That is no longer correct — tests now run under Electron's own
+  // Node via `scripts/vitest-electron.cjs`, so the Electron ABI build is the
+  // only one anybody needs and it must be present on CI too.
   const repoRoot = path.resolve(__dirname, '..');
   const desktopDir = path.join(repoRoot, 'apps', 'desktop');
 

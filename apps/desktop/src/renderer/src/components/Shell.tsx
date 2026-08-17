@@ -2,11 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { routes, resolveCrumbs, type RouteDef } from '../router/routes';
 import { paths } from '../router/paths';
-import { Avatar } from './Avatar';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Spinner } from './Spinner';
-import { api } from '../lib/api';
-import type { AuthSession, SyncStatus } from '@shared/schemas';
 import logoUrl from '../assets/logo.png';
 
 const NAV_SECTIONS = ['WORKSPACE', 'OPERATIONS', 'ADMIN'] as const;
@@ -81,8 +78,6 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
         <Crumbs trail={crumbs} />
         <div className="topbar-spacer" />
         <Search />
-        <SyncPill />
-        <UserChip />
       </header>
 
       <main className="shell-main" id="main" role="main">
@@ -94,7 +89,7 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
 
 function Mark(): JSX.Element {
   return (
-    <Link to="/" className="sidebar-mark" aria-label="Donkor & Sons — dashboard">
+    <Link to="/" className="sidebar-mark" aria-label="Donkor & Sons dashboard">
       <img src={logoUrl} alt="" className="mark-logo" />
       <span className="mark-stack">
         <span className="sub">Rentals</span>
@@ -104,7 +99,7 @@ function Mark(): JSX.Element {
 }
 
 function Foot(): JSX.Element {
-  const [version, setVersion] = useState<string>('—');
+  const [version, setVersion] = useState<string>('-');
   useEffect(() => {
     void window.donkor.getAppVersion().then(setVersion);
   }, []);
@@ -162,7 +157,7 @@ function Search(): JSX.Element {
         ref={ref}
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Search catalog, customers, bookings…"
+        placeholder="Search catalog, customers, bookings..."
         aria-label="Global search"
       />
       <span className="kbd" aria-hidden>Ctrl K</span>
@@ -170,73 +165,10 @@ function Search(): JSX.Element {
   );
 }
 
-function SyncPill(): JSX.Element {
-  const [status, setStatus] = useState<SyncStatus | null>(null);
-  useEffect(() => {
-    let alive = true;
-    function load(): void {
-      void api.sync.status().then((next) => {
-        if (alive) setStatus(next);
-      });
-    }
-    load();
-    const timer = setInterval(load, 15_000);
-    return () => {
-      alive = false;
-      clearInterval(timer);
-    };
-  }, []);
-
-  const label = !status
-    ? 'Sync'
-    : !status.configured
-      ? 'Local'
-      : status.failed > 0
-        ? 'Sync issue'
-        : status.pending > 0
-          ? `${status.pending} pending`
-          : 'Synced';
-  const klass = status?.configured && status.failed === 0 ? 'online' : status?.failed ? 'offline' : '';
-
-  return (
-    <Link
-      to="/reconciliation"
-      className={`sync-pill ${klass}`}
-      title={status?.lastError ?? (status?.configured ? 'Cloud sync is configured' : 'Cloud sync is not configured')}
-    >
-      <span className="dot" aria-hidden />
-      {label}
-    </Link>
-  );
-}
-
-function UserChip(): JSX.Element {
-  const [session, setSession] = useState<AuthSession | null>(null);
-  useEffect(() => {
-    let alive = true;
-    void api.auth.getSession().then((next) => {
-      if (alive) setSession(next);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const label = session?.user.name ?? 'Setup';
-  const title = session ? `${session.user.email} · ${session.user.role}` : 'Complete first-run setup';
-
-  return (
-    <Link to="/settings" className="user-chip" title={title}>
-      <Avatar name={label} size={24} />
-      <span>{label}</span>
-    </Link>
-  );
-}
-
 export function PageLoader(): JSX.Element {
   return (
     <div className="row" style={{ justifyContent: 'center', padding: '60px 0', color: 'var(--ink-mute)' }}>
-      <Spinner /> <span style={{ marginLeft: 8 }}>Loading…</span>
+      <Spinner /> <span style={{ marginLeft: 8 }}>Loading...</span>
     </div>
   );
 }

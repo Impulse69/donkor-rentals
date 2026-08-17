@@ -6,7 +6,7 @@ import log from 'electron-log/main';
 
 let db: DB | null = null;
 
-function dbPath(): string {
+export function dbPath(): string {
   const dir = join(app.getPath('userData'), 'db');
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   return join(dir, 'donkor.sqlite');
@@ -63,18 +63,6 @@ function applyMigrations(database: DB): void {
   }
 }
 
-function ensureRuntimeColumns(database: DB): void {
-  const userColumns = new Set(
-    database
-      .prepare('PRAGMA table_info(app_users)')
-      .all()
-      .map((row) => (row as { name: string }).name),
-  );
-  if (userColumns.size > 0 && !userColumns.has('password_hash')) {
-    database.exec('ALTER TABLE app_users ADD COLUMN password_hash TEXT');
-  }
-}
-
 export function openDb(): DB {
   if (db) return db;
   const path = dbPath();
@@ -84,7 +72,6 @@ export function openDb(): DB {
   database.pragma('foreign_keys = ON');
   database.pragma('synchronous = NORMAL');
   applyMigrations(database);
-  ensureRuntimeColumns(database);
   db = database;
   return db;
 }
@@ -109,8 +96,7 @@ export function openMemoryDb(): DB {
   return m;
 }
 
-// Convenience: ensure a default tenant row exists. Phase 4 replaces this with
-// auth + first-run wizard.
+// Convenience: ensure a local tenant row exists for repository operations.
 export function ensureBootstrapTenant(database: DB): string {
   const row = database.prepare('SELECT id FROM tenants LIMIT 1').get() as { id: string } | undefined;
   if (row) return row.id;

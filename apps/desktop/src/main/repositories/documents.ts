@@ -1,6 +1,5 @@
 import type { Database } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
-import { getSupabaseClient } from '../supabase/client';
 import { LOGO_DATA_URI } from '../assets/logoDataUri';
 
 export interface ArchivedDocument {
@@ -17,7 +16,7 @@ export interface ArchivedDocument {
 
 const DOC_COLS = `id, tenant_id, source_type, source_id, kind, title, storage_path, html, created_at`;
 
-export async function generateContract(db: Database, tenantId: string, bookingId: string): Promise<ArchivedDocument> {
+export function generateContract(db: Database, tenantId: string, bookingId: string): ArchivedDocument {
   const booking = readBookingBundle(db, tenantId, bookingId);
   const title = `Contract - ${booking.customer_name}`;
   
@@ -56,7 +55,7 @@ export async function generateContract(db: Database, tenantId: string, bookingId
   return archiveDocument(db, tenantId, 'booking', bookingId, 'contract', title, html);
 }
 
-export async function generateTripSheet(db: Database, tenantId: string, bookingId: string): Promise<ArchivedDocument> {
+export function generateTripSheet(db: Database, tenantId: string, bookingId: string): ArchivedDocument {
   const booking = readBookingBundle(db, tenantId, bookingId);
   const title = `Hearse trip sheet - ${booking.customer_name}`;
   const hearseLines = booking.lines.filter((line) => line['item_kind'] === 'hearse');
@@ -91,12 +90,12 @@ export async function generateTripSheet(db: Database, tenantId: string, bookingI
   return archiveDocument(db, tenantId, 'booking', bookingId, 'trip_sheet', title, html);
 }
 
-export async function generateInvoiceDocument(
+export function generateInvoiceDocument(
   db: Database,
   tenantId: string,
   invoiceId: string,
   options?: { overrideStatutory?: boolean },
-): Promise<ArchivedDocument> {
+): ArchivedDocument {
   const invoice = readInvoiceBundle(db, tenantId, invoiceId);
   const effective = options && typeof options.overrideStatutory === 'boolean'
     ? applyStatutoryOverride(invoice, options.overrideStatutory)
@@ -274,11 +273,10 @@ export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
 <head>
   <meta charset="utf-8" />
   <title>Invoice ${escape(invoice.number)}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; }
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       color: #1f2937;
       margin: 0;
       padding: 32px 36px;
@@ -564,7 +562,7 @@ export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
 </html>`;
 }
 
-export async function generateReceipt(db: Database, tenantId: string, paymentId: string): Promise<ArchivedDocument> {
+export function generateReceipt(db: Database, tenantId: string, paymentId: string): ArchivedDocument {
   const payment = db
     .prepare(
       `SELECT p.id, p.invoice_id, p.kind, p.amount_pesewas, p.method, p.reference, p.paid_at,
@@ -641,7 +639,7 @@ export function listDocuments(db: Database, tenantId: string, sourceType: string
     .all({ tenant_id: tenantId, source_type: sourceType, source_id: sourceId }) as ArchivedDocument[];
 }
 
-async function archiveDocument(
+function archiveDocument(
   db: Database,
   tenantId: string,
   sourceType: ArchivedDocument['source_type'],
@@ -649,10 +647,9 @@ async function archiveDocument(
   kind: ArchivedDocument['kind'],
   title: string,
   html: string,
-): Promise<ArchivedDocument> {
+): ArchivedDocument {
   const id = uuidv4();
   const createdAt = new Date().toISOString();
-  const storagePath = await uploadDocument(`${tenantId}/${kind}/${id}.html`, html);
   db.prepare(
     `INSERT INTO documents (${DOC_COLS})
      VALUES (@id, @tenant_id, @source_type, @source_id, @kind, @title, @storage_path, @html, @created_at)`,
@@ -663,21 +660,11 @@ async function archiveDocument(
     source_id: sourceId,
     kind,
     title,
-    storage_path: storagePath,
+    storage_path: null,
     html,
     created_at: createdAt,
   });
   return db.prepare(`SELECT ${DOC_COLS} FROM documents WHERE id = @id`).get({ id }) as ArchivedDocument;
-}
-
-async function uploadDocument(path: string, html: string): Promise<string | null> {
-  const client = getSupabaseClient();
-  if (!client) return null;
-  const { error } = await client.storage.from('documents').upload(path, new Blob([html], { type: 'text/html' }), {
-    upsert: true,
-  });
-  if (error) throw new Error(error.message);
-  return path;
 }
 
 function readBookingBundle(db: Database, tenantId: string, bookingId: string) {
@@ -818,11 +805,10 @@ function renderHtmlDocument(options: DocumentOptions): string {
 <head>
   <meta charset="utf-8" />
   <title>${escape(options.docType)} - ${escape(options.docNumber)}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; }
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       color: #1F2937;
       margin: 0;
       padding: 40px;
@@ -1148,3 +1134,5 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+

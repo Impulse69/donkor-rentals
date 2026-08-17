@@ -26,13 +26,8 @@ import type {
   InvoiceUpdateInput,
   Payment,
   PaymentCreateInput,
-  AuthSession,
-  FirstRunInput,
-  LocalUser,
-  LocalUserCreateInput,
-  SignInInput,
-  SyncStatus,
-  SyncConflict,
+  ShopProfile,
+  CompanySetupInput,
   ReturnRecord,
   ReturnCreateInput,
   DamageLine,
@@ -146,6 +141,18 @@ interface SettingsSnapshot {
   updates: UpdateStatus;
   crash: CrashStatus;
 }
+interface BackupManifest {
+  appVersion: string;
+  schemaVersion: string | null;
+  createdAt: string;
+  databaseFile: string;
+  rowCounts: Record<string, number>;
+}
+interface BackupResult {
+  filePath: string;
+  manifestPath: string;
+  manifest: BackupManifest;
+}
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: { code: string; message: string } };
 
@@ -211,23 +218,10 @@ const api = {
     void: (id: string) => call<InvoiceWithLines>('payments:void', { id }),
   },
 
-  auth: {
-    getSession: () => call<AuthSession | null>('auth:getSession'),
-    completeFirstRun: (input: FirstRunInput) => call<AuthSession>('auth:firstRun', input),
-    hasUsers: () => call<boolean>('auth:hasUsers'),
-    createUser: (input: LocalUserCreateInput) => call<LocalUser>('auth:createUser', input),
-    signIn: (input: SignInInput) => call<AuthSession>('auth:signIn', input),
-    signOut: () => call<void>('auth:signOut'),
-  },
-
-  sync: {
-    status: () => call<SyncStatus>('sync:status'),
-    drain: () => call<SyncStatus>('sync:drain'),
-    retryFailed: () => call<SyncStatus>('sync:retryFailed'),
-    applyInbox: () => call<{ applied: number }>('sync:applyInbox'),
-    listConflicts: () => call<SyncConflict[]>('sync:listConflicts'),
-    resolveConflict: (id: string, resolution: 'local' | 'remote') =>
-      call<SyncConflict>('sync:resolveConflict', { id, resolution }),
+  company: {
+    getProfile: () => call<ShopProfile | null>('company:getProfile'),
+    hasProfile: () => call<boolean>('company:hasProfile'),
+    setup: (input: CompanySetupInput) => call<ShopProfile>('company:setup', input),
   },
 
   returns: {
@@ -283,6 +277,12 @@ const api = {
       };
     },
     restartAndInstall: () => call<void>('settings:restartAndInstall'),
+  },
+
+  backup: {
+    create: () => call<BackupResult | null>('backup:create'),
+    restore: () => call<{ restored: true; preRestorePath: string } | null>('backup:restore'),
+    listRecent: () => call<BackupResult[]>('backup:listRecent'),
   },
 } as const;
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { UserRole } from '@shared/schemas';
+import type { ShopProfile } from '@shared/schemas';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 import { Button } from '../components/Button';
@@ -9,25 +9,33 @@ import { Spinner } from '../components/Spinner';
 import { KV } from '../components/KV';
 import { useToast } from '../components/Toast';
 
-const ROLE_OPTIONS: Array<{ value: UserRole; label: string }> = [
-  { value: 'staff', label: 'Staff' },
-  { value: 'manager', label: 'Manager' },
-  { value: 'owner', label: 'Owner' },
-];
+export default function Settings({ onCompanySaved }: { onCompanySaved?: () => void }): JSX.Element {
+  const company = useAsync(() => api.company.getProfile(), []);
 
-export default function Settings(): JSX.Element {
-  const session = useAsync(() => api.auth.getSession(), []);
-
-  if (session.status === 'idle' || session.status === 'loading') {
+  if (company.status === 'idle' || company.status === 'loading') {
     return (
       <div className="row" style={{ justifyContent: 'center', padding: 60, color: 'var(--ink-mute)' }}>
-        <Spinner /> <span style={{ marginLeft: 10 }}>Loading settings…</span>
+        <Spinner /> <span style={{ marginLeft: 10 }}>Loading settings...</span>
       </div>
     );
   }
 
-  if (session.status === 'error') {
-    return <Alert tone="bad" eyebrow="Settings" title="Could not load settings">{session.error.message}</Alert>;
+  if (company.status === 'error') {
+    return <Alert tone="bad" eyebrow="Settings" title="Could not load settings">{company.error.message}</Alert>;
+  }
+
+  if (!company.data) {
+    return (
+      <div className="page fade-up" style={{ maxWidth: 900 }}>
+        <CompanySetupForm
+          onSaved={() => {
+            company.refresh();
+            onCompanySaved?.();
+            window.dispatchEvent(new Event('donkor:company-changed'));
+          }}
+        />
+      </div>
+    );
   }
 
   return (
@@ -37,42 +45,30 @@ export default function Settings(): JSX.Element {
           <div className="page-eyebrow">Admin · Settings</div>
           <h1 className="page-title">Workstation</h1>
           <p className="muted" style={{ maxWidth: 620, marginTop: 8, lineHeight: 1.55 }}>
-            Owner setup, role context, user management, updates, and cloud-sync readiness for
-            this Windows workstation.
+            Company profile, local company-file backup, updates, and crash diagnostics for this Windows workstation.
           </p>
         </div>
       </header>
 
-      {session.data ? (
-        <ActiveSettings onRefresh={session.refresh} session={session.data} />
-      ) : (
-        <FirstRunForm onSaved={session.refresh} />
-      )}
+      <ActiveSettings company={company.data} onCompanyRefresh={company.refresh} />
     </div>
   );
 }
 
 function ActiveSettings({
-  session,
-  onRefresh,
+  company,
+  onCompanyRefresh,
 }: {
-  session: Awaited<ReturnType<typeof api.auth.getSession>>;
-  onRefresh: () => void;
+  company: ShopProfile;
+  onCompanyRefresh: () => void;
 }): JSX.Element {
   const toast = useToast();
-  const [syncing, setSyncing] = useState(false);
   const appSettings = useAsync(() => api.settings.get(), []);
   const [checking, setChecking] = useState(false);
   const [downloadPercent, setDownloadPercent] = useState<number | null>(null);
   const [downloadedVersion, setDownloadedVersion] = useState<string | null>(null);
-
-  const [newUserName, setNewUserName] = useState('');
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserPassword, setNewUserPassword] = useState('');
-  const [newUserConfirm, setNewUserConfirm] = useState('');
-  const [newUserRole, setNewUserRole] = useState<UserRole>('staff');
-  const [creatingUser, setCreatingUser] = useState(false);
-  const [userErrors, setUserErrors] = useState<Partial<Record<'email' | 'password' | 'confirm', string>>>({});
+  const [backingUp, setBackingUp] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   useEffect(() => {
     const offProgress = api.settings.onUpdateProgress((percent) => setDownloadPercent(percent));
@@ -87,23 +83,6 @@ function ActiveSettings({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function drain(): Promise<void> {
-    setSyncing(true);
-    try {
-      const status = await api.sync.drain();
-      toast.ok(status.configured ? 'Sync pass finished' : 'Cloud sync is not configured');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Sync failed');
-    } finally {
-      setSyncing(false);
-    }
-  }
-
-  async function signOut(): Promise<void> {
-    await api.auth.signOut();
-    onRefresh();
-  }
 
   async function updateChannel(channel: 'latest' | 'beta'): Promise<void> {
     try {
@@ -148,135 +127,65 @@ function ActiveSettings({
     }
   }
 
-  function validateUser(): boolean {
-    const next: typeof userErrors = {};
-    if (newUserEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newUserEmail)) next.email = 'Email looks off';
-    if (newUserPassword.length < 8) next.password = 'Use at least 8 characters';
-    if (newUserPassword !== newUserConfirm) next.confirm = 'Passwords do not match';
-    setUserErrors(next);
-    return Object.keys(next).length === 0;
-  }
-
-  async function handleCreateUser(e: React.FormEvent): Promise<void> {
-    e.preventDefault();
-    if (!validateUser()) return;
-    setCreatingUser(true);
+  async function createBackup(): Promise<void> {
+    setBackingUp(true);
     try {
-      await api.auth.createUser({
-        name: newUserName,
-        email: newUserEmail,
-        password: newUserPassword,
-        role: newUserRole,
-      });
-      toast.ok(`User account created for ${newUserName}`);
-      setNewUserName('');
-      setNewUserEmail('');
-      setNewUserPassword('');
-      setNewUserConfirm('');
-      setNewUserRole('staff');
-      setUserErrors({});
+      const backup = await api.backup.create();
+      if (backup) toast.ok(`Backup saved: ${backup.filePath}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not create user');
+      toast.error(err instanceof Error ? err.message : 'Could not create backup');
     } finally {
-      setCreatingUser(false);
+      setBackingUp(false);
     }
   }
 
-  if (!session) return <FirstRunForm onSaved={onRefresh} />;
-
-  const canManageUsers = ['owner', 'manager'].includes(session.user.role);
+  async function restoreBackup(): Promise<void> {
+    setRestoring(true);
+    try {
+      const restored = await api.backup.restore();
+      if (restored) toast.ok('Backup restored. The app will restart.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not restore backup');
+    } finally {
+      setRestoring(false);
+    }
+  }
 
   return (
     <div className="grid-2 fade-up fade-up-1">
       <section className="card">
-        <h3 className="card-title">Shop profile</h3>
+        <h3 className="card-title">Company profile</h3>
         <div className="grid-2">
-          <KV label="Name" value={session.shop.name} />
-          <KV label="Currency" value={session.shop.currency} />
-          <KV label="Locale" value={session.shop.locale} />
-          <KV label="Phone" value={session.shop.phone ?? 'Not set'} />
+          <KV label="Name" value={company.name} />
+          <KV label="Currency" value={company.currency} />
+          <KV label="TIN" value={company.tin ?? 'Not set'} />
+          <KV label="Phone" value={company.phone ?? 'Not set'} />
+          <KV label="Fiscal year start" value={company.fiscal_year_start ?? 'Not set'} />
         </div>
-        {session.shop.address && (
+        {company.address && (
           <p className="muted" style={{ whiteSpace: 'pre-wrap', marginBottom: 0, marginTop: 12, fontSize: 13 }}>
-            {session.shop.address}
+            {company.address}
           </p>
         )}
+        <div className="form-actions">
+          <Button type="button" onClick={onCompanyRefresh}>Refresh</Button>
+        </div>
       </section>
 
       <section className="card">
-        <h3 className="card-title">Signed in</h3>
-        <div className="stack">
-          <KV label="User" value={session.user.name} />
-          <KV label="Email" value={session.user.email} />
-          <KV label="Role" value={session.user.role} />
-          <KV label="Supabase" value={session.supabaseConfigured ? 'Configured' : 'Local only'} />
-        </div>
+        <h3 className="card-title">Company file</h3>
+        <p className="muted" style={{ marginTop: 0, fontSize: 13, lineHeight: 1.5 }}>
+          Backups are local SQLite copies with a manifest. Restoring replaces all current data with the selected backup.
+        </p>
         <div className="form-actions">
-          <Button type="button" variant="ghost" onClick={() => { void signOut(); }}>Sign out</Button>
-          <Button type="button" variant="primary" onClick={() => { void drain(); }} loading={syncing}>
-            Run sync now
+          <Button type="button" variant="primary" onClick={() => { void createBackup(); }} loading={backingUp}>
+            Back up company file
+          </Button>
+          <Button type="button" variant="danger" onClick={() => { void restoreBackup(); }} loading={restoring}>
+            Restore company file
           </Button>
         </div>
       </section>
-
-      {canManageUsers && (
-        <section className="card" style={{ gridColumn: '1 / -1' }}>
-          <h3 className="card-title">Create user</h3>
-          <p className="muted" style={{ marginTop: 0, marginBottom: 16, fontSize: 13 }}>
-            Staff users see only operations modules. Managers can void payments. Owners see settings.
-          </p>
-          <form onSubmit={(e) => { void handleCreateUser(e); }}>
-            <div className="form-grid">
-              <Input
-                label="Full name"
-                value={newUserName}
-                onChange={(e) => setNewUserName(e.target.value)}
-                autoComplete="name"
-                required
-              />
-              <Input
-                label="Email"
-                type="email"
-                autoComplete="username"
-                value={newUserEmail}
-                onChange={(e) => setNewUserEmail(e.target.value)}
-                error={userErrors.email}
-                required
-              />
-              <Select
-                label="Role"
-                value={newUserRole}
-                onChange={(e) => setNewUserRole(e.target.value as UserRole)}
-                options={ROLE_OPTIONS}
-                required
-              />
-              <div /> {/* spacer */}
-              <Input
-                label="Password"
-                type="password"
-                autoComplete="new-password"
-                value={newUserPassword}
-                onChange={(e) => setNewUserPassword(e.target.value)}
-                error={userErrors.password}
-                hint={userErrors.password ? undefined : 'Minimum 8 characters'}
-                required
-              />
-              <Input
-                label="Confirm password"
-                type="password"
-                autoComplete="new-password"
-                value={newUserConfirm}
-                onChange={(e) => setNewUserConfirm(e.target.value)}
-                error={userErrors.confirm}
-                required
-              />
-            </div>
-            <div className="form-actions">
-              <Button variant="primary" type="submit" loading={creatingUser}>Create user account</Button>
-            </div>
-          </form>
-        </section>
-      )}
 
       <section className="card">
         <h3 className="card-title">Updates</h3>
@@ -318,8 +227,8 @@ function ActiveSettings({
           <div className="copy">
             <span className="t">Send crash diagnostics</span>
             <span className="h">
-              Only sent when a DSN is configured.{' '}
-              Status: {appSettings.status === 'ok'
+              Only sent when a DSN is configured. Status:{' '}
+              {appSettings.status === 'ok'
                 ? appSettings.data.crash.configured ? 'configured' : 'waiting for DSN'
                 : 'loading'}
             </span>
@@ -341,34 +250,33 @@ function UpdateRing({ percent, active }: { percent: number | null; active: boole
   const style = { '--p': `${value * 3.6}deg` } as React.CSSProperties;
   return (
     <div className={`update-ring${active ? ' active' : ''}`} style={style} title={`Update download ${value}%`}>
-      <span>{percent === null ? '—' : value}</span>
+      <span>{percent === null ? '-' : value}</span>
     </div>
   );
 }
 
-function FirstRunForm({ onSaved }: { onSaved: () => void }): JSX.Element {
+function CompanySetupForm({ onSaved }: { onSaved: () => void }): JSX.Element {
   const toast = useToast();
-  const [shopName, setShopName] = useState('Donkor & Sons');
-  const [shopPhone, setShopPhone] = useState('');
-  const [shopAddress, setShopAddress] = useState('');
-  const [ownerName, setOwnerName] = useState('');
-  const [ownerEmail, setOwnerEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [name, setName] = useState('Donkor & Sons');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [tin, setTin] = useState('');
+  const [fiscalYearStart, setFiscalYearStart] = useState('01-01');
   const [saving, setSaving] = useState(false);
 
   async function submit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.auth.completeFirstRun({
-        shop_name: shopName,
-        shop_phone: shopPhone || null,
-        shop_address: shopAddress || null,
-        owner_name: ownerName,
-        owner_email: ownerEmail,
-        password: password || undefined,
+      await api.company.setup({
+        name,
+        phone: phone || null,
+        address: address || null,
+        tin: tin || null,
+        currency: 'GHS',
+        fiscal_year_start: fiscalYearStart,
       });
-      toast.ok('Owner setup saved');
+      toast.ok('Company setup saved');
       onSaved();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not save setup');
@@ -380,29 +288,28 @@ function FirstRunForm({ onSaved }: { onSaved: () => void }): JSX.Element {
   return (
     <form className="card fade-up fade-up-1" onSubmit={(e) => { void submit(e); }}>
       <span className="eyebrow">First-run wizard</span>
-      <h3 style={{ marginTop: 6 }}>Create the owner profile</h3>
+      <h3 style={{ marginTop: 6 }}>Set up your company</h3>
       <div className="form-grid" style={{ marginTop: 18 }}>
-        <Input label="Shop name" value={shopName} onChange={(e) => setShopName(e.target.value)} required />
-        <Input label="Shop phone" value={shopPhone} onChange={(e) => setShopPhone(e.target.value)} />
+        <Input label="Company name" value={name} onChange={(e) => setName(e.target.value)} required />
+        <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <Input label="TIN" value={tin} onChange={(e) => setTin(e.target.value)} />
+        <Input label="Currency" value="GHS" readOnly />
+        <Input
+          label="Fiscal year start"
+          value={fiscalYearStart}
+          onChange={(e) => setFiscalYearStart(e.target.value)}
+          required
+        />
         <Textarea
           containerClass="full"
-          label="Shop address"
+          label="Address"
           rows={2}
-          value={shopAddress}
-          onChange={(e) => setShopAddress(e.target.value)}
-        />
-        <Input label="Owner name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} required />
-        <Input label="Owner email" type="email" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} required />
-        <Input
-          label="Supabase password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          hint="Optional when the workstation is local-only."
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
         />
       </div>
       <div className="form-actions">
-        <Button variant="primary" type="submit" loading={saving}>Save setup</Button>
+        <Button variant="primary" type="submit" loading={saving}>Save company setup</Button>
       </div>
     </form>
   );

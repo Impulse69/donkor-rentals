@@ -77,25 +77,11 @@ export const api = {
       unwrap(window.donkor.payments.record(input)),
     void: (id: string) => unwrap(window.donkor.payments.void(id)),
   },
-  auth: {
-    getSession: () => unwrap(window.donkor.auth.getSession()),
-    completeFirstRun: (input: Parameters<typeof window.donkor.auth.completeFirstRun>[0]) =>
-      unwrap(window.donkor.auth.completeFirstRun(input)),
-    hasUsers: () => unwrap(window.donkor.auth.hasUsers()),
-    createUser: (input: Parameters<typeof window.donkor.auth.createUser>[0]) =>
-      unwrap(window.donkor.auth.createUser(input)),
-    signIn: (input: Parameters<typeof window.donkor.auth.signIn>[0]) =>
-      unwrap(window.donkor.auth.signIn(input)),
-    signOut: () => unwrap(window.donkor.auth.signOut()),
-  },
-  sync: {
-    status: () => unwrap(window.donkor.sync.status()),
-    drain: () => unwrap(window.donkor.sync.drain()),
-    retryFailed: () => unwrap(window.donkor.sync.retryFailed()),
-    applyInbox: () => unwrap(window.donkor.sync.applyInbox()),
-    listConflicts: () => unwrap(window.donkor.sync.listConflicts()),
-    resolveConflict: (id: string, resolution: 'local' | 'remote') =>
-      unwrap(window.donkor.sync.resolveConflict(id, resolution)),
+  company: {
+    getProfile: () => unwrap(window.donkor.company.getProfile()),
+    hasProfile: () => unwrap(window.donkor.company.hasProfile()),
+    setup: (input: Parameters<typeof window.donkor.company.setup>[0]) =>
+      unwrap(window.donkor.company.setup(input)),
   },
   returns: {
     list: () => unwrap(window.donkor.returns.list()),
@@ -130,5 +116,10 @@ export const api = {
     onUpdateProgress: window.donkor.settings.onUpdateProgress,
     onUpdateDownloaded: window.donkor.settings.onUpdateDownloaded,
     restartAndInstall: () => unwrap(window.donkor.settings.restartAndInstall()),
+  },
+  backup: {
+    create: () => unwrap(window.donkor.backup.create()),
+    restore: () => unwrap(window.donkor.backup.restore()),
+    listRecent: () => unwrap(window.donkor.backup.listRecent()),
   },
 };

@@ -1,6 +1,5 @@
 export * as Money from './money';
 export * as Schemas from './schemas';
-export * as Sync from './sync';
 export * as Returns from './returns';
 export * as Reports from './reports';
 export * as Updates from './updates';
