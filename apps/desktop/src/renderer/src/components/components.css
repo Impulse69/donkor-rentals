@@ -450,6 +450,15 @@ input[type='checkbox'], input[type='radio'] {
 }
 .dtable-toolbar .grow,
 .dtable-toolbar-search { flex: 1 1 auto; }
+
+/* Leading cell that pairs an avatar or icon with its label, as QBO's name
+   columns do. Keeps the two vertically centred without disturbing row height. */
+.cell-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
 .dtable-toolbar-actions {
   display: inline-flex;
   align-items: center;
