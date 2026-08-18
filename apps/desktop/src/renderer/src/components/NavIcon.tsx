@@ -70,6 +70,40 @@ const iconPaths: Record<IconKey, JSX.Element> = {
       <path d="M5 15.5h11" />
     </>
   ),
+  expenses: (
+    <>
+      <path d="M5 5h10v10H5z" />
+      <path d="M7.5 8h5" />
+      <path d="M7.5 11h3" />
+      <path d="M13 13.5 15.5 16" />
+    </>
+  ),
+  vendors: (
+    <>
+      <path d="M4.5 15.5v-8l5.5-3 5.5 3v8" />
+      <path d="M7 15.5v-5h6v5" />
+      <path d="M8.5 7.5h3" />
+    </>
+  ),
+  chart: (
+    <>
+      <path d="M4.5 6.5h11" />
+      <path d="M4.5 10h11" />
+      <path d="M4.5 13.5h11" />
+      <path d="M7 4v12" />
+      <path d="M12.5 4v12" />
+    </>
+  ),
+  journal: (
+    <>
+      <path d="M5.5 4.5h9v11h-9z" />
+      <path d="M8 7.5h4" />
+      <path d="M8 10h4" />
+      <path d="M8 12.5h2.5" />
+      <path d="M4 7h1.5" />
+      <path d="M4 11h1.5" />
+    </>
+  ),
 };
 
 export function NavIcon({ icon, ...props }: { icon: IconKey } & SVGProps<SVGSVGElement>): JSX.Element {

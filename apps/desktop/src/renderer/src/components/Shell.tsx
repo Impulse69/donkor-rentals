@@ -10,7 +10,7 @@ import { Spinner } from './Spinner';
 import { NavIcon } from './NavIcon';
 import logoUrl from '../assets/logo.png';
 
-const NAV_SECTIONS = ['SALES', 'RENTALS', 'REPORTS'] as const;
+const NAV_SECTIONS = ['SALES', 'RENTALS', 'EXPENSES', 'ACCOUNTING', 'REPORTS'] as const;
 const NAV_ORDER = [
   '/',
   '/invoices',
@@ -19,6 +19,10 @@ const NAV_ORDER = [
   '/catalog',
   '/returns',
   '/bookings/calendar',
+  '/expenses',
+  '/expenses/vendors',
+  '/accounting/chart',
+  '/accounting/journal',
   '/reports',
 ] as const;
 
@@ -36,6 +40,15 @@ const NEW_MENU = [
     entries: [
       { label: 'Product or service', to: paths.catalog.new },
       { label: 'Record return', to: paths.returns.list },
+    ],
+  },
+  {
+    label: 'OTHER',
+    entries: [
+      { label: 'Expense', to: '/expenses/new' },
+      { label: 'Bill', to: '/expenses/new?kind=bill' },
+      { label: 'Journal entry', to: '/accounting/journal/new' },
+      { label: 'Vendor', to: '/expenses/vendors/new' },
     ],
   },
 ] as const;

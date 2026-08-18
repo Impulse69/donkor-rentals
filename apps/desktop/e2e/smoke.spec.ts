@@ -60,11 +60,11 @@ test('boots into the QBO shell', async () => {
 
 test('sidebar exposes the QBO sections and no future-phase links', async () => {
   const nav = win.locator('.sidebar-nav');
-  for (const label of ['Dashboard', 'Invoices', 'Customers', 'Bookings', 'Products and Services', 'Returns', 'Calendar', 'Reports']) {
+  for (const label of ['Dashboard', 'Invoices', 'Customers', 'Bookings', 'Products and Services', 'Returns', 'Calendar', 'Expenses', 'Vendors', 'Chart of Accounts', 'Journal Entries', 'Reports']) {
     await expect(nav.getByText(label, { exact: true })).toBeVisible();
   }
-  // Phases 5-7 own these; a link now would 404.
-  for (const absent of ['Expenses', 'Vendors', 'Chart of Accounts', 'Journal Entries', 'Taxes']) {
+  // Taxes still belongs to a future phase; a link now would 404.
+  for (const absent of ['Taxes']) {
     await expect(nav.getByText(absent, { exact: true })).toHaveCount(0);
   }
   // Settings moved to the top-bar gear, as in QBO.
@@ -76,13 +76,26 @@ test('+ New opens and every entry targets a route that renders', async () => {
   const menu = win.locator('.new-menu');
   await expect(menu).toBeVisible();
 
-  const entries = menu.locator('.new-menu-item');
-  await expect(entries.first()).toBeVisible();
-  const count = await entries.count();
-  expect(count).toBeGreaterThan(0);
+  for (const label of ['Expense', 'Bill', 'Journal entry', 'Vendor']) {
+    await expect(menu.getByRole('menuitem', { name: label })).toBeVisible();
+  }
 
   await win.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
+
+  const entries: Array<[string, RegExp]> = [
+    ['Expense', /New expense/],
+    ['Bill', /New bill/],
+    ['Journal entry', /New journal entry/],
+    ['Vendor', /Add a vendor/],
+  ];
+
+  for (const [label, heading] of entries) {
+    await win.locator('.new-button').click();
+    await win.locator('.new-menu').getByRole('menuitem', { name: label }).click();
+    await expect(win.locator('h1.page-title')).toHaveText(heading, { timeout: 10_000 });
+    await expect(win.locator('.error-boundary')).toHaveCount(0);
+  }
 });
 
 test('navigates every converted screen without an error boundary', async () => {
@@ -94,6 +107,10 @@ test('navigates every converted screen without an error boundary', async () => {
     ['Bookings', 'Bookings'],
     ['Products and Services', 'Products and Services'],
     ['Returns', 'Damage and deposits'],
+    ['Expenses', 'Expenses'],
+    ['Vendors', 'Vendors'],
+    ['Chart of Accounts', 'Chart of Accounts'],
+    ['Journal Entries', 'Journal Entries'],
     ['Reports', 'Revenue and operations'],
   ];
 

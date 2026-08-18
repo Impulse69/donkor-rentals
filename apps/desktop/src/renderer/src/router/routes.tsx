@@ -14,7 +14,7 @@ export interface RouteDef {
   crumb: string | ((params: Readonly<Record<string, string>>) => string);
   nav?: {
     label: string;
-    icon: 'dashboard' | 'invoice' | 'customers' | 'bookings' | 'products' | 'returns' | 'calendar' | 'reports';
+    icon: 'dashboard' | 'invoice' | 'customers' | 'bookings' | 'products' | 'returns' | 'calendar' | 'reports' | 'expenses' | 'vendors' | 'chart' | 'journal';
     section?: string;
   };
 }
@@ -47,6 +47,25 @@ const Invoices = {
 const Returns = {
   List: lazy(() => import('../routes/returns/List')),
   Form: lazy(() => import('../routes/returns/Form')),
+};
+
+const Expenses = {
+  List: lazy(() => import('../routes/expenses/List')),
+  Form: lazy(() => import('../routes/expenses/Form')),
+  Detail: lazy(() => import('../routes/expenses/Detail')),
+};
+
+const Vendors = {
+  List: lazy(() => import('../routes/expenses/VendorsList')),
+  Form: lazy(() => import('../routes/expenses/VendorForm')),
+  Detail: lazy(() => import('../routes/expenses/VendorDetail')),
+};
+
+const Accounting = {
+  Chart: lazy(() => import('../routes/accounting/Chart')),
+  Register: lazy(() => import('../routes/accounting/Register')),
+  JournalList: lazy(() => import('../routes/accounting/JournalList')),
+  JournalForm: lazy(() => import('../routes/accounting/JournalForm')),
 };
 
 const Settings = lazy(() => import('../routes/Settings'));
@@ -113,6 +132,38 @@ export const routes: RouteDef[] = [
     nav: { label: 'Returns', icon: 'returns', section: 'RENTALS' },
   },
   { path: '/returns/new/:bookingId', element: Returns.Form, crumb: 'New return' },
+  {
+    path: '/expenses',
+    element: Expenses.List,
+    crumb: 'Expenses',
+    nav: { label: 'Expenses', icon: 'expenses', section: 'EXPENSES' },
+  },
+  { path: '/expenses/new', element: Expenses.Form, crumb: 'New expense' },
+  { path: '/expenses/:id', element: Expenses.Detail, crumb: 'Expense' },
+  {
+    path: '/expenses/vendors',
+    element: Vendors.List,
+    crumb: 'Vendors',
+    nav: { label: 'Vendors', icon: 'vendors', section: 'EXPENSES' },
+  },
+  { path: '/expenses/vendors/new', element: Vendors.Form, crumb: 'New vendor' },
+  { path: '/expenses/vendors/:id', element: Vendors.Detail, crumb: 'Vendor' },
+  { path: '/expenses/vendors/:id/edit', element: Vendors.Form, crumb: 'Edit vendor' },
+  {
+    path: '/accounting/chart',
+    element: Accounting.Chart,
+    crumb: 'Chart of Accounts',
+    nav: { label: 'Chart of Accounts', icon: 'chart', section: 'ACCOUNTING' },
+  },
+  { path: '/accounting/accounts/:id', element: Accounting.Register, crumb: 'Account register' },
+  {
+    path: '/accounting/journal',
+    element: Accounting.JournalList,
+    crumb: 'Journal Entries',
+    nav: { label: 'Journal Entries', icon: 'journal', section: 'ACCOUNTING' },
+  },
+  { path: '/accounting/journal/new', element: Accounting.JournalForm, crumb: 'New journal entry' },
+  { path: '/accounting/journal/:id', element: Accounting.JournalForm, crumb: 'Journal entry' },
   {
     path: '/reports',
     element: Reports,
