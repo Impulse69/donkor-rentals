@@ -144,10 +144,21 @@ test('a fresh install explains an empty catalogue instead of a dead item picker'
   await expect(win.locator('select', { hasText: 'Add item to booking' })).toHaveCount(0);
 });
 
-test('global search still deep-links into products', async () => {
-  await win.keyboard.press('Control+KeyK');
-  const search = win.locator('.topbar-search input, .topbar input[type="search"], .topbar input').first();
-  await search.fill('tent');
-  await search.press('Enter');
-  await expect(win).toHaveURL(/catalog/, { timeout: 10_000 });
+test('back and forward buttons walk the navigation history', async () => {
+  // Replaced the breadcrumb trail and the global search: the search only ever
+  // pointed at the catalogue whatever its placeholder promised, and the trail
+  // was three levels of where-you-already-are. Back/forward is what people
+  // actually reached for.
+  await win.locator('.sidebar-nav').getByText('Customers', { exact: true }).click();
+  await expect(win.locator('h1.page-title')).toHaveText('Customers');
+  await win.locator('.sidebar-nav').getByText('Invoices', { exact: true }).click();
+  await expect(win.locator('h1.page-title')).toHaveText('Invoices');
+
+  await win.getByRole('button', { name: 'Go back' }).click();
+  await expect(win.locator('h1.page-title')).toHaveText('Customers');
+  await win.getByRole('button', { name: 'Go forward' }).click();
+  await expect(win.locator('h1.page-title')).toHaveText('Invoices');
+
+  // And the search is really gone.
+  await expect(win.locator('.topbar-search')).toHaveCount(0);
 });

@@ -2,6 +2,27 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.3.2] — 2026-08-18
+
+### Simpler navigation
+
+- **Back and forward buttons** at the top left, like a browser. They replace the
+  breadcrumb trail ("Donkor & Sons / Bookings / New booking"), which spent three
+  levels telling you where you already were.
+- **The search bar is gone.** Whatever you typed, it only ever searched the
+  products list — a customer name or booking landed you on Products and
+  Services with no matches. Each list screen has its own search that works.
+
+### Booking page tidy-up
+
+- Pickup, Drop-off and Driver only appear when they are filled in. They are
+  mostly used for hearse jobs; on a party-supplies booking they showed three
+  rows of dashes that read like missing data rather than data that does not
+  apply.
+- A walk-in booking no longer says "Walk-in rental" twice in the customer box.
+
+---
+
 ## [1.3.1] — 2026-08-18
 
 ### Fixed: could not add items to a booking on a new installation
