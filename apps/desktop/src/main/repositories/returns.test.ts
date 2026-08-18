@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ensureChartOfAccounts, resolveAccount } from '../accounting/chart';
@@ -23,7 +23,10 @@ let db: Database.Database;
 function makeDb(): Database.Database {
   const d = new Database(':memory:');
   d.pragma('foreign_keys = ON');
-  for (const f of ['0001_baseline.sql', '0002_accounting.sql']) {
+  // Apply every shipped migration in order, exactly as the real runner does.
+  // A hardcoded list here silently pins tests to an old schema the moment a
+  // migration lands.
+  for (const f of readdirSync(MIGRATIONS).filter((n) => n.endsWith('.sql')).sort()) {
     d.exec(readFileSync(join(MIGRATIONS, f), 'utf8'));
   }
   const now = new Date().toISOString();

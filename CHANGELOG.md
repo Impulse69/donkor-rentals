@@ -2,6 +2,29 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.3.4] — 2026-08-18
+
+### Walk-in customers can leave a phone number
+
+A walk-in booking has no customer file, which meant no way to reach the person
+at all — no number to call when the hearse is ready or the chairs are due back.
+The booking form now asks for a phone number on walk-ins, and it shows on the
+booking page.
+
+It is optional on purpose. If someone does not want to give a number, the
+booking still goes through.
+
+### Booking page tidy-up (for real this time)
+
+Honest note: the 1.3.2 notes promised this tidy-up, but the change was lost in
+the build and never actually shipped. It is really in now:
+
+- Pickup, Drop-off and Driver only appear when they are filled in — no more
+  rows of dashes on a party-supplies booking.
+- A walk-in booking no longer says "Walk-in rental" twice.
+
+---
+
 ## [1.3.3] — 2026-08-18
 
 ### Fixed: row menus were cut off

@@ -28,6 +28,9 @@ export const Booking = z.object({
   tenant_id: Uuid,
   customer_id: Uuid.nullable(),
   renter_name: z.string().min(1).max(200).nullable(),
+  // Reachability for walk-ins, who have no customer file to carry a number.
+  // Optional on purpose — a booking must never be blocked on it.
+  renter_phone: z.string().max(50).nullable(),
   status: BookingStatus,
   starts_at: IsoDateTime,
   ends_at: IsoDateTime,
