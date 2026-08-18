@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, NavLink, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { routes, type RouteDef } from '../router/routes';
 import { paths } from '../router/paths';
 import { api } from '../lib/api';
@@ -56,7 +56,6 @@ const NEW_MENU = [
 
 export function Shell({ children }: { children: ReactNode }): JSX.Element {
   const location = useLocation();
-  const params = useParams() as Readonly<Record<string, string>>;
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const company = useAsync(() => api.company.getProfile(), []);
 
@@ -152,7 +151,6 @@ function NewMenu(): JSX.Element {
     <div className="sidebar-new">
       <Dropdown
         align="start"
-        portal
         trigger={<button type="button" className="new-button">+ New</button>}
       >
         <div className="new-menu" aria-label="Create new">

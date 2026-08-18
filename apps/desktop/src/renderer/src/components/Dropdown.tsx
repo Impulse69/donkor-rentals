@@ -18,31 +18,30 @@ interface DropdownProps {
   children: ReactNode;
   /** Align the menu to the start of the trigger instead of the end. */
   align?: 'start' | 'end';
-  /**
-   * Render the menu into document.body instead of beside the trigger.
-   *
-   * An absolutely positioned menu is clipped by any ancestor with
-   * `overflow: hidden`. The sidebar has exactly that, so the wide "+ New" panel
-   * had its second column sliced off at the 224px rail. Portalling escapes the
-   * clip; the menu is then positioned from the trigger's own rect and clamped to
-   * the viewport.
-   */
-  portal?: boolean;
 }
 
 /**
  * Lightweight headless menu. Closes on outside click, ESC, and on item-click
  * when the item is rendered with `<Dropdown.Item />`. Use for row actions,
  * overflow menus, and any "more actions" button.
+ *
+ * The menu ALWAYS renders into document.body, positioned from the trigger's rect
+ * and clamped to the viewport. An absolutely positioned menu is clipped by any
+ * ancestor with `overflow: hidden`, and this app has more than ten such
+ * containers — the sidebar, .dtable-wrap, cards, panels. Portalling only where
+ * we predicted a clip is what shipped a bug twice: first the "+ New" panel cut
+ * off at the sidebar rail, then every table row-action menu cut off at the
+ * bottom of the table. Deciding per-callsite is the defect; there is no opt-out
+ * on purpose.
  */
-export function Dropdown({ trigger, children, align = 'end', portal = false }: DropdownProps): JSX.Element {
+export function Dropdown({ trigger, children, align = 'end' }: DropdownProps): JSX.Element {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<CSSProperties | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const place = useCallback(() => {
-    if (!portal || !rootRef.current) return;
+    if (!rootRef.current) return;
     const anchor = rootRef.current.getBoundingClientRect();
     const menu = menuRef.current?.getBoundingClientRect();
     const width = menu?.width ?? 0;
@@ -61,12 +60,12 @@ export function Dropdown({ trigger, children, align = 'end', portal = false }: D
       : below;
 
     setPosition({ position: 'fixed', top, left, right: 'auto' });
-  }, [align, portal]);
+  }, [align]);
 
   useLayoutEffect(() => {
-    if (!open || !portal) return;
+    if (!open) return;
     place();
-  }, [open, portal, place]);
+  }, [open, place]);
 
   useEffect(() => {
     if (!open) return;
@@ -82,7 +81,7 @@ export function Dropdown({ trigger, children, align = 'end', portal = false }: D
       if (e.key === 'Escape') setOpen(false);
     }
     function onReflow(): void {
-      if (portal) place();
+      place();
     }
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
@@ -99,7 +98,7 @@ export function Dropdown({ trigger, children, align = 'end', portal = false }: D
       window.removeEventListener('resize', onReflow);
       window.removeEventListener('scroll', onReflow, true);
     };
-  }, [open, portal, place]);
+  }, [open, place]);
 
   const triggerEl = isValidElement(trigger)
     ? cloneElement(trigger as ReactElement<Record<string, unknown>>, {
@@ -115,16 +114,10 @@ export function Dropdown({ trigger, children, align = 'end', portal = false }: D
   const menu = open ? (
     <div
       ref={menuRef}
-      className={portal ? 'dropdown-menu dropdown-menu-portal' : 'dropdown-menu'}
+      className="dropdown-menu dropdown-menu-portal"
       role="menu"
-      style={
-        portal
-          ? // Keep it out of sight until measured, or it flashes at 0,0.
-            (position ?? { position: 'fixed', visibility: 'hidden' })
-          : align === 'start'
-            ? { left: 0, right: 'auto' }
-            : undefined
-      }
+      // Keep it out of sight until measured, or it flashes at 0,0.
+      style={position ?? { position: 'fixed', visibility: 'hidden' }}
       onClick={(e) => {
         // Auto-close when an item is clicked (delegated).
         const target = (e.target as HTMLElement).closest('[role="menuitem"]');
@@ -138,7 +131,7 @@ export function Dropdown({ trigger, children, align = 'end', portal = false }: D
   return (
     <div className="dropdown" ref={rootRef}>
       {triggerEl}
-      {portal && menu ? createPortal(menu, document.body) : menu}
+      {menu ? createPortal(menu, document.body) : null}
     </div>
   );
 }

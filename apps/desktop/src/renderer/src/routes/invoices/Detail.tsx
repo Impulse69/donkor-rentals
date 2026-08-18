@@ -11,6 +11,7 @@ import {
   formatDateTime,
 } from '../../lib/format';
 import { printHtml } from '../../lib/print';
+import { ActionBar } from '../../components/ActionBar';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
 import { StatusPill, type StatusPillStatus } from '../../components/StatusPill';
@@ -383,7 +384,7 @@ export default function InvoiceDetail(): JSX.Element {
         </section>
       </div>
 
-      <div className="invoice-actionbar" role="toolbar" aria-label="Invoice actions">
+      <ActionBar label="Invoice actions">
         <div className="invoice-actionbar-left">
           <Link to={paths.invoices.list}>
             <Button variant="ghost">Cancel</Button>
@@ -419,7 +420,7 @@ export default function InvoiceDetail(): JSX.Element {
             </Button>
           )}
         </div>
-      </div>
+      </ActionBar>
     </div>
   );
 }
