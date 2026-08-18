@@ -107,6 +107,67 @@ export const api = {
     tripLog: (limit?: number) => unwrap(window.donkor.reports.tripLog(limit)),
     damageSummary: () => unwrap(window.donkor.reports.damageSummary()),
     exportCsv: () => unwrap(window.donkor.reports.exportCsv()),
+    trialBalance: (asOf: string, start?: string) =>
+      unwrap(window.donkor.reports.trialBalance(asOf, start)),
+    profitAndLoss: (start: string, end: string) =>
+      unwrap(window.donkor.reports.profitAndLoss(start, end)),
+    balanceSheet: (asOf: string) => unwrap(window.donkor.reports.balanceSheet(asOf)),
+    arAging: (asOf: string) => unwrap(window.donkor.reports.arAging(asOf)),
+    generalLedger: (start: string, end: string, accountId?: string) =>
+      unwrap(window.donkor.reports.generalLedger(start, end, accountId)),
+  },
+  accounts: {
+    list: (filter?: Parameters<typeof window.donkor.accounts.list>[0]) =>
+      unwrap(window.donkor.accounts.list(filter)),
+    get: (id: string) => unwrap(window.donkor.accounts.get(id)),
+    create: (input: Parameters<typeof window.donkor.accounts.create>[0]) =>
+      unwrap(window.donkor.accounts.create(input)),
+    update: (id: string, patch: Parameters<typeof window.donkor.accounts.update>[1]) =>
+      unwrap(window.donkor.accounts.update(id, patch)),
+    archive: (id: string) => unwrap(window.donkor.accounts.archive(id)),
+    mappings: () => unwrap(window.donkor.accounts.mappings()),
+    setMapping: (key: Parameters<typeof window.donkor.accounts.setMapping>[0], accountId: string) =>
+      unwrap(window.donkor.accounts.setMapping(key, accountId)),
+  },
+  journal: {
+    list: (filter?: Parameters<typeof window.donkor.journal.list>[0]) =>
+      unwrap(window.donkor.journal.list(filter)),
+    get: (id: string) => unwrap(window.donkor.journal.get(id)),
+    createManual: (input: Parameters<typeof window.donkor.journal.createManual>[0]) =>
+      unwrap(window.donkor.journal.createManual(input)),
+    void: (id: string, entryDate?: string, reason?: string) =>
+      unwrap(window.donkor.journal.void(id, entryDate, reason)),
+  },
+  accounting: {
+    settings: () => unwrap(window.donkor.accounting.settings()),
+    updateSettings: (patch: Parameters<typeof window.donkor.accounting.updateSettings>[0]) =>
+      unwrap(window.donkor.accounting.updateSettings(patch)),
+    closeBooks: (through: string) => unwrap(window.donkor.accounting.closeBooks(through)),
+    status: () => unwrap(window.donkor.accounting.status()),
+    health: (asOf: string) => unwrap(window.donkor.accounting.health(asOf)),
+  },
+  vendors: {
+    list: (filter?: Parameters<typeof window.donkor.vendors.list>[0]) =>
+      unwrap(window.donkor.vendors.list(filter)),
+    get: (id: string) => unwrap(window.donkor.vendors.get(id)),
+    create: (input: Parameters<typeof window.donkor.vendors.create>[0]) =>
+      unwrap(window.donkor.vendors.create(input)),
+    update: (id: string, patch: Parameters<typeof window.donkor.vendors.update>[1]) =>
+      unwrap(window.donkor.vendors.update(id, patch)),
+    softDelete: (id: string) => unwrap(window.donkor.vendors.softDelete(id)),
+  },
+  expenses: {
+    list: (filter?: Parameters<typeof window.donkor.expenses.list>[0]) =>
+      unwrap(window.donkor.expenses.list(filter)),
+    get: (id: string) => unwrap(window.donkor.expenses.get(id)),
+    create: (input: Parameters<typeof window.donkor.expenses.create>[0]) =>
+      unwrap(window.donkor.expenses.create(input)),
+    update: (id: string, patch: Parameters<typeof window.donkor.expenses.update>[1]) =>
+      unwrap(window.donkor.expenses.update(id, patch)),
+    void: (id: string) => unwrap(window.donkor.expenses.void(id)),
+    recordBillPayment: (input: Parameters<typeof window.donkor.expenses.recordBillPayment>[0]) =>
+      unwrap(window.donkor.expenses.recordBillPayment(input)),
+    voidBillPayment: (id: string) => unwrap(window.donkor.expenses.voidBillPayment(id)),
   },
   settings: {
     get: () => unwrap(window.donkor.settings.get()),

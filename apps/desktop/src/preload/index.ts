@@ -32,6 +32,26 @@ import type {
   ReturnCreateInput,
   DamageLine,
   DamagePhoto,
+  Account,
+  AccountCreateInput,
+  AccountUpdateInput,
+  AccountFilter,
+  AccountMapping,
+  AccountMappingKey,
+  AccountingSettings,
+  JournalEntry,
+  JournalEntryCreateInput,
+  JournalFilter,
+  Vendor,
+  VendorCreateInput,
+  VendorUpdateInput,
+  VendorFilter,
+  Expense,
+  ExpenseCreateInput,
+  ExpenseUpdateInput,
+  ExpenseFilter,
+  BillPayment,
+  BillPaymentCreateInput,
 } from '../../../packages/shared/src/schemas';
 
 interface BookingWithCustomer extends Booking {
@@ -141,6 +161,13 @@ interface SettingsSnapshot {
   updates: UpdateStatus;
   crash: CrashStatus;
 }
+interface TrialBalanceRow { account_id: string; code: string; name: string; account_type: string; classification: string; debit_pesewas: number; credit_pesewas: number; balance_side: 'debit' | 'credit' | 'zero'; balance_pesewas: number }
+interface ProfitAndLossRow { account_id: string; code: string; name: string; account_type: 'income' | 'expense'; classification: string; amount_pesewas: number }
+interface BalanceSheetRow { account_id: string; code: string; name: string; account_type: 'asset' | 'liability' | 'equity'; classification: string; amount_pesewas: number; computed?: boolean }
+interface BalanceSheetReport { rows: BalanceSheetRow[]; retained_earnings_pesewas: number; current_net_income_pesewas: number; out_of_balance_pesewas: number }
+interface ArAgingRow { invoice_id: string; invoice_number: string; customer_name: string; issued_at: string; due_at: string | null; total_pesewas: number; paid_as_of_pesewas: number; balance_pesewas: number; days_overdue: number; bucket: string }
+interface LedgerRow { entry_id: string; line_id: string; entry_no: string; entry_date: string; memo: string | null; debit_pesewas: number; credit_pesewas: number; running_balance_pesewas: number }
+interface ExpenseWithLines extends Expense { lines: unknown[]; bill_payments: BillPayment[]; paid_pesewas: number; balance_due_pesewas: number }
 interface BackupManifest {
   appVersion: string;
   schemaVersion: string | null;
@@ -256,6 +283,61 @@ const api = {
     tripLog: (limit?: number) => call<TripLogRow[]>('reports:tripLog', { limit }),
     damageSummary: () => call<DamageSummaryRow[]>('reports:damageSummary'),
     exportCsv: () => call<string>('reports:exportCsv'),
+    trialBalance: (asOf: string, start?: string) =>
+      call<TrialBalanceRow[]>('reports:trialBalance', { asOf, start }),
+    profitAndLoss: (start: string, end: string) =>
+      call<ProfitAndLossRow[]>('reports:profitAndLoss', { start, end }),
+    balanceSheet: (asOf: string) => call<BalanceSheetReport>('reports:balanceSheet', { asOf }),
+    arAging: (asOf: string) => call<ArAgingRow[]>('reports:arAging', { asOf }),
+    generalLedger: (start: string, end: string, accountId?: string) =>
+      call<LedgerRow[]>('reports:generalLedger', { start, end, accountId }),
+  },
+
+  accounts: {
+    list: (filter?: AccountFilter) => call<Account[]>('accounts:list', filter ?? {}),
+    get: (id: string) => call<Account | null>('accounts:get', { id }),
+    create: (input: AccountCreateInput) => call<Account>('accounts:create', input),
+    update: (id: string, patch: AccountUpdateInput) => call<Account>('accounts:update', { id, patch }),
+    archive: (id: string) => call<{ id: string }>('accounts:archive', { id }),
+    mappings: () => call<AccountMapping[]>('accounts:mappings'),
+    setMapping: (key: AccountMappingKey, account_id: string) =>
+      call<{ key: AccountMappingKey; account_id: string }>('accounts:setMapping', { key, account_id }),
+  },
+
+  journal: {
+    list: (filter?: JournalFilter) => call<JournalEntry[]>('journal:list', filter ?? {}),
+    get: (id: string) => call<JournalEntry | null>('journal:get', { id }),
+    createManual: (input: JournalEntryCreateInput) => call<JournalEntry | null>('journal:createManual', input),
+    void: (id: string, entry_date?: string, reason?: string) =>
+      call<string>('journal:void', { id, entry_date, reason }),
+  },
+
+  accounting: {
+    settings: () => call<AccountingSettings>('accounting:settings'),
+    updateSettings: (patch: Partial<AccountingSettings>) =>
+      call<AccountingSettings>('accounting:updateSettings', patch),
+    closeBooks: (through: string) => call<AccountingSettings>('accounting:closeBooks', { through }),
+    status: () => call<{ chart_ready: boolean; books_closed_through: string | null; unposted_counts: number }>('accounting:status'),
+    health: (asOf: string) => call<unknown>('accounting:health', { asOf }),
+  },
+
+  vendors: {
+    list: (filter?: VendorFilter) => call<Vendor[]>('vendors:list', filter ?? {}),
+    get: (id: string) => call<Vendor | null>('vendors:get', { id }),
+    create: (input: VendorCreateInput) => call<Vendor>('vendors:create', input),
+    update: (id: string, patch: VendorUpdateInput) => call<Vendor>('vendors:update', { id, patch }),
+    softDelete: (id: string) => call<{ id: string }>('vendors:softDelete', { id }),
+  },
+
+  expenses: {
+    list: (filter?: ExpenseFilter) => call<Expense[]>('expenses:list', filter ?? {}),
+    get: (id: string) => call<ExpenseWithLines | null>('expenses:get', { id }),
+    create: (input: ExpenseCreateInput) => call<ExpenseWithLines>('expenses:create', input),
+    update: (id: string, patch: ExpenseUpdateInput) => call<ExpenseWithLines>('expenses:update', { id, patch }),
+    void: (id: string) => call<ExpenseWithLines>('expenses:void', { id }),
+    recordBillPayment: (input: BillPaymentCreateInput) =>
+      call<BillPayment>('expenses:recordBillPayment', input),
+    voidBillPayment: (id: string) => call<{ id: string }>('expenses:voidBillPayment', { id }),
   },
 
   settings: {

@@ -143,7 +143,7 @@ describe('posting builders', () => {
       },
     },
     {
-      name: 'refund matching return refund',
+      name: 'refund releasing a return deposit',
       draft: () => {
         const a = accounts();
         return buildRefundedEntry({
@@ -153,7 +153,6 @@ describe('posting builders', () => {
           customer_deposits_account_id: a.deposits,
           ar_account_id: a.ar,
           amount_pesewas: 1_000,
-          matches_return_refund: true,
         });
       },
     },
@@ -168,7 +167,6 @@ describe('posting builders', () => {
           customer_deposits_account_id: a.deposits,
           ar_account_id: a.ar,
           amount_pesewas: 1_000,
-          matches_return_refund: false,
         });
       },
     },

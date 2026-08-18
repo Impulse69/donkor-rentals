@@ -9,6 +9,7 @@ import {
   type Payment,
   type PaymentCreateInput,
 } from '@shared/schemas';
+import { format as formatMoney } from '@shared/money';
 import {
   buildDepositAppliedEntry,
   buildDepositReceivedEntry,
@@ -484,6 +485,17 @@ export function updateInvoice(
       postInvoiceIssued(db, tenantId, current);
     }
     if (patch.status === 'void' && existing.status !== 'void') {
+      // Voiding reverses the issue entry, which credits A/R back. If money has
+      // already been received against the invoice those payment credits stay on
+      // the books, and A/R is left with a credit balance equal to the amount
+      // paid — the ledger stops tying to the invoice sub-ledger. Refund first,
+      // then void.
+      if (current.amount_paid_pesewas > 0) {
+        throw new Error(
+          `Cannot void invoice ${current.number} — ${formatMoney(current.amount_paid_pesewas)} ` +
+            `has been received against it. Refund the payments first, then void.`,
+        );
+      }
       const entries = db
         .prepare(
           `SELECT id FROM journal_entries
@@ -603,25 +615,12 @@ export function recordPayment(
         customer_id,
       }));
     } else {
-      const matchesReturnRefund = Boolean(db
-        .prepare(
-          `SELECT r.id
-           FROM returns r
-           WHERE r.tenant_id = @tenant_id
-             AND r.booking_id = @booking_id
-             AND r.refund_pesewas = @amount
-             AND r.deleted_at IS NULL
-           LIMIT 1`,
-        )
-        .get({ tenant_id: tenantId, booking_id: snap.booking_id, amount: input.amount_pesewas }));
       postOnce(db, tenantId, buildRefundedEntry({
         entry_date: toEntryDate(input.paid_at),
         payment_id: id,
         cash_account_id: resolveCashAccount(db, tenantId, input.method),
-        customer_deposits_account_id: resolveAccount(db, tenantId, 'customer_deposits'),
         ar_account_id: resolveAccount(db, tenantId, 'ar'),
         amount_pesewas: input.amount_pesewas,
-        matches_return_refund: matchesReturnRefund,
         customer_id,
       }));
     }

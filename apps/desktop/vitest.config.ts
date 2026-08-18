@@ -1,6 +1,18 @@
+import { resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      // Mirrors the alias in electron.vite.config.ts. Without it only the
+      // subpaths listed in packages/shared/package.json "exports" resolve, so
+      // `@shared/schemas` worked while `@shared/returns` and `@shared/reports`
+      // failed to load — and only inside tests, which is a confusing place to
+      // discover it.
+      '@shared': resolve(__dirname, '../../packages/shared/src'),
+      '@main': resolve(__dirname, 'src/main'),
+    },
+  },
   test: {
     include: ['src/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
     exclude: ['node_modules', 'dist', 'release', 'e2e/**'],

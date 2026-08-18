@@ -182,32 +182,54 @@ export function buildPaymentReceivedEntry(input: {
   };
 }
 
+/**
+ * All refunds debit A/R, including one that matches a return's refundable
+ * deposit.
+ *
+ * The tempting rule is to release Customer Deposits Held when the refund equals
+ * `returns.refund_pesewas`. It is wrong here, because a refund is recorded as a
+ * `payments` row against the invoice and `amount_paid_pesewas` subtracts every
+ * refund regardless of kind — so the invoice balance rises. If A/R did not rise
+ * with it, `SUM(GL A/R)` would stop equalling `SUM(invoice balances)`, and that
+ * tie-out is the invariant every report rests on. Following the app's own
+ * semantics beats modelling the economics more prettily and lying about the
+ * totals.
+ *
+ * The deposit liability is handled at return reconciliation instead. Note that
+ * security deposits are never recorded as *received* (there is no payments row —
+ * `returns.deposit_pesewas` is typed by hand), so Customer Deposits Held can go
+ * negative. That is a data-quality signal, and `health.ts#depositsNeverNegative`
+ * reports it rather than the ledger hiding it.
+ */
 export function buildRefundedEntry(input: {
   entry_date: string;
   payment_id: string;
-  cash_account_id: string;
-  customer_deposits_account_id: string;
   ar_account_id: string;
+  cash_account_id: string;
   amount_pesewas: number;
-  matches_return_refund: boolean;
   customer_id?: string | null;
 }): JournalDraft {
   return {
     entry_date: input.entry_date,
-    memo: 'Refund paid',
+    memo: 'Refund issued',
+    origin: 'auto',
     source_type: 'payment',
     source_id: input.payment_id,
     source_event: 'refunded',
-    origin: 'auto',
-    lines: compact([
+    lines: [
       line({
-        account_id: input.matches_return_refund ? input.customer_deposits_account_id : input.ar_account_id,
+        account_id: input.ar_account_id,
         debit_pesewas: input.amount_pesewas,
         credit_pesewas: 0,
         customer_id: input.customer_id ?? null,
       }),
-      line({ account_id: input.cash_account_id, debit_pesewas: 0, credit_pesewas: input.amount_pesewas }),
-    ]),
+      line({
+        account_id: input.cash_account_id,
+        debit_pesewas: 0,
+        credit_pesewas: input.amount_pesewas,
+        customer_id: input.customer_id ?? null,
+      }),
+    ],
   };
 }
 

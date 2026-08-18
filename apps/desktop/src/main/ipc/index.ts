@@ -9,6 +9,9 @@ import { registerDocumentsIpc } from './handlers/documents';
 import { registerReportsIpc } from './handlers/reports';
 import { registerSettingsIpc } from './handlers/settings';
 import { registerBackupIpc } from './handlers/backup';
+import { registerAccountingIpc } from './handlers/accounting';
+import { registerVendorsIpc } from './handlers/vendors';
+import { registerExpensesIpc } from './handlers/expenses';
 
 /**
  * IPC handler registration. The renderer reaches main only via these channels.
@@ -25,6 +28,9 @@ export function registerIpc(): void {
   registerReturnsIpc();
   registerDocumentsIpc();
   registerReportsIpc();
+  registerAccountingIpc();
+  registerVendorsIpc();
+  registerExpensesIpc();
   registerSettingsIpc();
   registerBackupIpc();
 }
