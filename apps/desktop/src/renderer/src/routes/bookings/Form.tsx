@@ -293,7 +293,11 @@ export default function BookingForm(): JSX.Element {
             <>
               <div className="divider" />
               <h3 className="card-title">Lines</h3>
-              <LinePicker items={items.status === 'ok' ? items.data : []} onPick={addLineFor} />
+              <LinePicker
+                items={items.status === 'ok' ? items.data : []}
+                loading={items.status === 'loading'}
+                onPick={addLineFor}
+              />
               <div style={{ marginTop: 14 }}>
                 {lines.map((l) => (
                   <LineRow
@@ -330,22 +334,69 @@ export default function BookingForm(): JSX.Element {
   );
 }
 
-function LinePicker({ items, onPick }: { items: Item[]; onPick: (id: string) => void }): JSX.Element {
+function LinePicker({ items, loading, onPick }: {
+  items: Item[];
+  loading: boolean;
+  onPick: (id: string) => void;
+}): JSX.Element {
   const [pick, setPick] = useState('');
+  const supplies = items.filter((i) => i.kind === 'party_supply');
+  const hearses = items.filter((i) => i.kind === 'hearse');
+
+  if (loading) {
+    return (
+      <div className="row" style={{ gap: 8 }}>
+        <select className="select" style={{ flex: '1 1 auto' }} disabled>
+          <option>Loading products…</option>
+        </select>
+        <Button type="button" disabled>Add</Button>
+      </div>
+    );
+  }
+
+  // A fresh install has an empty catalog, and an empty picker is indistinguishable
+  // from a broken one: the optgroup labels still render as grey rows that look
+  // selectable, so clicking them appears to do nothing and the booking cannot be
+  // completed. Say what is wrong and where to fix it.
+  if (items.length === 0) {
+    return (
+      <Alert tone="info" eyebrow="No products yet" title="Add a product or service before booking">
+        <p style={{ margin: '4px 0 10px' }}>
+          A booking is made up of items from your catalogue, and nothing has been added yet.
+        </p>
+        <Link to={paths.catalog.new}>
+          <Button variant="primary" type="button">Add your first product</Button>
+        </Link>
+      </Alert>
+    );
+  }
+
   return (
     <div className="row" style={{ gap: 8 }}>
-      <select className="select" style={{ flex: '1 1 auto' }} value={pick} onChange={(e) => setPick(e.target.value)}>
+      <select
+        className="select"
+        style={{ flex: '1 1 auto' }}
+        value={pick}
+        onChange={(e) => setPick(e.target.value)}
+        aria-label="Add item to booking"
+      >
         <option value="">Add item to booking</option>
-        <optgroup label="Party supplies">
-          {items.filter((i) => i.kind === 'party_supply').map((i) => (
-            <option key={i.id} value={i.id}>{i.name} - {formatGhs(i.daily_rate_pesewas)}/day</option>
-          ))}
-        </optgroup>
-        <optgroup label="Hearses">
-          {items.filter((i) => i.kind === 'hearse').map((i) => (
-            <option key={i.id} value={i.id}>{i.name} - {formatGhs(i.daily_rate_pesewas)}/day</option>
-          ))}
-        </optgroup>
+        {/* Only render a group that has something in it — an empty optgroup shows
+            a label that looks like a choice but cannot be selected. */}
+        {supplies.length > 0 && (
+          <optgroup label="Party supplies">
+            {supplies.map((i) => (
+              <option key={i.id} value={i.id}>{i.name} - {formatGhs(i.daily_rate_pesewas)}/day</option>
+            ))}
+          </optgroup>
+        )}
+        {hearses.length > 0 && (
+          <optgroup label="Hearses">
+            {hearses.map((i) => (
+              <option key={i.id} value={i.id}>{i.name} - {formatGhs(i.daily_rate_pesewas)}/day</option>
+            ))}
+          </optgroup>
+        )}
       </select>
       <Button type="button" onClick={() => { if (pick) { onPick(pick); setPick(''); } }} disabled={!pick}>Add</Button>
     </div>

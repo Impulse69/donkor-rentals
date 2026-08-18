@@ -2,6 +2,25 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.3.1] — 2026-08-18
+
+### Fixed: could not add items to a booking on a new installation
+
+On a fresh install the catalogue starts empty, and the "Add item to booking"
+dropdown gave no sign of it. It still showed the **Party supplies** and
+**Hearses** headings, which look like choices but cannot be selected — so the
+dropdown opened, nothing could be picked, and the booking could not be
+completed at all.
+
+The booking form now tells you the catalogue is empty and offers a button to
+add your first product. Once you have products, the dropdown behaves normally,
+and a heading only appears when there is something under it.
+
+The form also distinguishes *still loading* from *nothing there*, so a slow
+first open no longer looks like the same fault.
+
+---
+
 ## [1.3.0] — 2026-08-18
 
 Adds real double-entry bookkeeping and completes the QuickBooks Online
