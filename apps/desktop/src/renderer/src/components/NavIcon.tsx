@@ -104,6 +104,15 @@ const iconPaths: Record<IconKey, JSX.Element> = {
       <path d="M4 11h1.5" />
     </>
   ),
+  taxes: (
+    <>
+      <path d="M5 4.5h10v11H5z" />
+      <path d="M7.5 7h5" />
+      <path d="M7.5 10h5" />
+      <path d="M8 13h1" />
+      <path d="M11 13h1" />
+    </>
+  ),
 };
 
 export function NavIcon({ icon, ...props }: { icon: IconKey } & SVGProps<SVGSVGElement>): JSX.Element {

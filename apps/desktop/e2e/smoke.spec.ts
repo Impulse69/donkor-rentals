@@ -60,12 +60,8 @@ test('boots into the QBO shell', async () => {
 
 test('sidebar exposes the QBO sections and no future-phase links', async () => {
   const nav = win.locator('.sidebar-nav');
-  for (const label of ['Dashboard', 'Invoices', 'Customers', 'Bookings', 'Products and Services', 'Returns', 'Calendar', 'Expenses', 'Vendors', 'Chart of Accounts', 'Journal Entries', 'Reports']) {
+  for (const label of ['Dashboard', 'Invoices', 'Customers', 'Bookings', 'Products and Services', 'Returns', 'Calendar', 'Expenses', 'Vendors', 'Chart of Accounts', 'Journal Entries', 'Reports', 'Taxes']) {
     await expect(nav.getByText(label, { exact: true })).toBeVisible();
-  }
-  // Taxes still belongs to a future phase; a link now would 404.
-  for (const absent of ['Taxes']) {
-    await expect(nav.getByText(absent, { exact: true })).toHaveCount(0);
   }
   // Settings moved to the top-bar gear, as in QBO.
   await expect(nav.getByText('Settings', { exact: true })).toHaveCount(0);
@@ -111,7 +107,8 @@ test('navigates every converted screen without an error boundary', async () => {
     ['Vendors', 'Vendors'],
     ['Chart of Accounts', 'Chart of Accounts'],
     ['Journal Entries', 'Journal Entries'],
-    ['Reports', 'Revenue and operations'],
+    ['Reports', 'Reports'],
+    ['Taxes', 'Taxes'],
   ];
 
   for (const [navLabel, heading] of screens) {

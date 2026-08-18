@@ -14,7 +14,7 @@ export interface RouteDef {
   crumb: string | ((params: Readonly<Record<string, string>>) => string);
   nav?: {
     label: string;
-    icon: 'dashboard' | 'invoice' | 'customers' | 'bookings' | 'products' | 'returns' | 'calendar' | 'reports' | 'expenses' | 'vendors' | 'chart' | 'journal';
+    icon: 'dashboard' | 'invoice' | 'customers' | 'bookings' | 'products' | 'returns' | 'calendar' | 'reports' | 'expenses' | 'vendors' | 'chart' | 'journal' | 'taxes';
     section?: string;
   };
 }
@@ -70,6 +70,7 @@ const Accounting = {
 
 const Settings = lazy(() => import('../routes/Settings'));
 const Reports = lazy(() => import('../routes/Reports'));
+const Taxes = lazy(() => import('../routes/Taxes'));
 const Dashboard = lazy(() => import('../routes/Dashboard'));
 
 export const routes: RouteDef[] = [
@@ -169,6 +170,12 @@ export const routes: RouteDef[] = [
     element: Reports,
     crumb: 'Reports',
     nav: { label: 'Reports', icon: 'reports', section: 'REPORTS' },
+  },
+  {
+    path: '/taxes',
+    element: Taxes,
+    crumb: 'Taxes',
+    nav: { label: 'Taxes', icon: 'taxes', section: 'TAXES' },
   },
   {
     path: '/settings',

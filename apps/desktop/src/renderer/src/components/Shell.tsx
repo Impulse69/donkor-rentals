@@ -10,7 +10,7 @@ import { Spinner } from './Spinner';
 import { NavIcon } from './NavIcon';
 import logoUrl from '../assets/logo.png';
 
-const NAV_SECTIONS = ['SALES', 'RENTALS', 'EXPENSES', 'ACCOUNTING', 'REPORTS'] as const;
+const NAV_SECTIONS = ['SALES', 'RENTALS', 'EXPENSES', 'ACCOUNTING', 'REPORTS', 'TAXES'] as const;
 const NAV_ORDER = [
   '/',
   '/invoices',
@@ -24,6 +24,7 @@ const NAV_ORDER = [
   '/accounting/chart',
   '/accounting/journal',
   '/reports',
+  '/taxes',
 ] as const;
 
 const NEW_MENU = [
