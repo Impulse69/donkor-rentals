@@ -19,6 +19,15 @@ test.beforeAll(async () => {
   });
   win = await app.firstWindow();
 
+  // The app ships at 90% page zoom (see DEFAULT_ZOOM in main/index.ts), but
+  // Electron's zoom factor offsets Playwright's hit-testing: clicks land off
+  // target and retry until the test times out. Drive at 100% instead. Zoom is a
+  // rendering scale, so every assertion here — structure, navigation, copy — is
+  // unaffected by it.
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(1);
+  });
+
   // A database with no company profile opens on the first-run wizard rather
   // than the shell, so the run is not reproducible unless we handle both. This
   // also gives the wizard — new in 1.2.0, and otherwise untested — real
