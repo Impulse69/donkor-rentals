@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { routes, resolveCrumbs, type RouteDef } from '../router/routes';
+import { routes, type RouteDef } from '../router/routes';
 import { paths } from '../router/paths';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
@@ -57,7 +57,6 @@ const NEW_MENU = [
 export function Shell({ children }: { children: ReactNode }): JSX.Element {
   const location = useLocation();
   const params = useParams() as Readonly<Record<string, string>>;
-  const crumbs = useMemo(() => resolveCrumbs(location.pathname, params), [location.pathname, params]);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const company = useAsync(() => api.company.getProfile(), []);
 
@@ -117,10 +116,9 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
       </aside>
 
       <header className="shell-topbar" role="banner">
+        <HistoryNav />
         <div className="topbar-company" title={companyName}>{companyName}</div>
-        <Search />
         <div className="topbar-spacer" />
-        <Crumbs trail={crumbs} />
         <TopbarActions />
       </header>
 
@@ -198,19 +196,41 @@ function Foot(): JSX.Element {
   );
 }
 
-function Crumbs({ trail }: { trail: Array<{ to: string; label: string }> }): JSX.Element {
+/**
+ * Back and forward, where a breadcrumb trail used to be.
+ *
+ * The trail read "Donkor & Sons / Bookings / New booking" — three levels to say
+ * where you already knew you were, and only the middle one was ever clickable.
+ * Going back one step is what people actually did with it, so this offers that
+ * directly. Placed at the top left, where every browser and file manager puts it.
+ */
+function HistoryNav(): JSX.Element {
+  const navigate = useNavigate();
   return (
-    <nav className="crumbs" aria-label="Breadcrumb">
-      {trail.map((c, i) => {
-        const isLast = i === trail.length - 1;
-        return (
-          <span key={c.to} className="row" style={{ gap: 6 }}>
-            {!isLast ? <Link to={c.to}>{c.label}</Link> : <span className="current">{c.label}</span>}
-            {!isLast && <span className="sep" aria-hidden>/</span>}
-          </span>
-        );
-      })}
-    </nav>
+    <div className="topbar-history">
+      <button
+        type="button"
+        className="icon-button"
+        onClick={() => navigate(-1)}
+        aria-label="Go back"
+        title="Back"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        className="icon-button"
+        onClick={() => navigate(1)}
+        aria-label="Go forward"
+        title="Forward"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M9 18l6-6-6-6" />
+        </svg>
+      </button>
+    </div>
   );
 }
 
@@ -230,44 +250,6 @@ function TopbarActions(): JSX.Element {
       </Dropdown>
       <button type="button" className="icon-button" aria-label="Help" title="Help">?</button>
     </div>
-  );
-}
-
-function Search(): JSX.Element {
-  const ref = useRef<HTMLInputElement>(null);
-  const navigate = useNavigate();
-  const [q, setQ] = useState('');
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent): void {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        ref.current?.focus();
-        ref.current?.select();
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  function onSubmit(e: React.FormEvent): void {
-    e.preventDefault();
-    if (q.trim().length === 0) return;
-    navigate(paths.catalog.listFiltered({ search: q.trim() }));
-  }
-
-  return (
-    <form className="topbar-search" onSubmit={onSubmit} role="search">
-      <span aria-hidden style={{ fontSize: 13, lineHeight: 1 }}>⌕</span>
-      <input
-        ref={ref}
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder="Search catalog, customers, bookings..."
-        aria-label="Global search"
-      />
-      <span className="kbd" aria-hidden>Ctrl K</span>
-    </form>
   );
 }
 
