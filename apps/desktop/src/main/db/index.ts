@@ -3,6 +3,7 @@ import { app } from 'electron';
 import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import log from 'electron-log/main';
+import { ensureChartOfAccounts } from '../accounting/chart';
 
 let db: DB | null = null;
 
@@ -120,7 +121,10 @@ export function openMemoryDb(): DB {
 // Convenience: ensure a local tenant row exists for repository operations.
 export function ensureBootstrapTenant(database: DB): string {
   const row = database.prepare('SELECT id FROM tenants LIMIT 1').get() as { id: string } | undefined;
-  if (row) return row.id;
+  if (row) {
+    ensureChartOfAccounts(database, row.id);
+    return row.id;
+  }
   const id = '00000000-0000-4000-8000-000000000001';
   const now = new Date().toISOString();
   database
@@ -129,6 +133,7 @@ export function ensureBootstrapTenant(database: DB): string {
        VALUES (?, ?, 'GHS', 'en-GB', ?, ?)`,
     )
     .run(id, 'Donkor & Sons', now, now);
+  ensureChartOfAccounts(database, id);
   return id;
 }
 

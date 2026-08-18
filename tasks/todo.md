@@ -1,17 +1,19 @@
-# Phase 3 QBO Shell
+# Phase 5a Accounting Data Model
 
 ## Plan
-- [x] Update route nav metadata, catalog naming, and breadcrumb depth.
-- [x] Add local inline sidebar icon map with no dependency changes.
-- [x] Rework Shell sidebar/topbar and + New dropdown while preserving search and update restart behavior.
-- [x] Restyle shell/sidebar/topbar/dropdowns using existing QBO tokens and keep print rules intact.
-- [ ] Verify route links, numeric glyph removal, typecheck, lint, and tests.
+- [x] Add `0002_accounting.sql` with accounting tables, constraints, indexes, and tenant-independent account templates.
+- [x] Add shared accounting, journal, vendor, and expense schemas, plus `IsoDate`.
+- [x] Add `ensureChartOfAccounts`, account resolution helpers, and bootstrap wiring.
+- [x] Add an idempotency unit test that uses the real migration files.
+- [x] Run `pnpm typecheck`, `pnpm lint`, and `pnpm test`; confirm `0001_baseline.sql` is untouched.
 
 ## Review
-- Implemented Tasks A-D in renderer scope only.
+- Added Phase 5a accounting migration as `0002_accounting.sql`; `0001_baseline.sql` was not modified.
+- Added 52 tenant-independent account templates and 23 mapping-backed templates.
+- Added shared schemas for accounts, journals, vendors, expenses, and `IsoDate`.
+- Added chart bootstrap helper and called it from `ensureBootstrapTenant`.
+- Added an idempotency test for `ensureChartOfAccounts`, but desktop Vitest did not load in this sandbox.
 - `pnpm.cmd typecheck` passed.
 - `pnpm.cmd lint` passed.
-- `grep -rn "'0[0-9]'" apps/desktop/src/renderer/src/router/routes.tsx` returned no output.
-- Static route check passed: requested sidebar routes and `+ New` targets exist in `routes.tsx`; forbidden future/admin nav labels are absent.
-- `pnpm.cmd test` passed `packages/shared` (4 files, 11 tests) and `packages/db` (no test files), then failed before desktop Vitest loaded because Electron-as-Node hit `EPERM: operation not permitted, lstat 'C:\Users\User'` in the managed sandbox.
-- `pnpm.cmd dev` failed before app render because esbuild could not read above the worktree while loading `apps/desktop/electron.vite.config.ts`: `Cannot read directory "../../../../../../..": Access is denied.`
+- `pnpm.cmd test` passed `packages/shared` (4 files, 11 tests) and `packages/db` (no test files), then failed before `apps/desktop` Vitest loaded with `EPERM: operation not permitted, lstat 'C:\Users\User'`.
+- The dev database launch check was skipped because Electron test/dev startup is blocked by the same managed-sandbox access denial.

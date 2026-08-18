@@ -5,3 +5,7 @@ export * from './booking';
 export * from './invoice';
 export * from './company';
 export * from './return';
+export * from './account';
+export * from './journal';
+export * from './vendor';
+export * from './expense';
