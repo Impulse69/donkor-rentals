@@ -4,8 +4,7 @@ import log from 'electron-log/main';
 import { registerIpc } from './ipc';
 import { openDb, closeDb, getDb } from './db';
 import { seedIfEmpty } from './db/seed';
-import { getSupabaseClient } from './supabase/client';
-import { drainOutbox } from './sync/outbox';
+import { hasCompanyProfile } from './repositories/company';
 import { configureUpdates, stopUpdates } from './updates';
 import { captureCrash, configureCrashReporting } from './crash';
 
@@ -14,7 +13,12 @@ log.transports.file.level = 'info';
 log.info('Donkor Rentals — main process starting');
 
 const isDev = !app.isPackaged;
-let syncTimer: NodeJS.Timeout | null = null;
+
+/** Page zoom applied on launch; Ctrl/Cmd +, - and 0 adjust and reset it. */
+const DEFAULT_ZOOM = 0.9;
+const ZOOM_STEP = 0.05;
+const MIN_ZOOM = 0.6;
+const MAX_ZOOM = 1.4;
 
 function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -24,17 +28,41 @@ function createMainWindow(): BrowserWindow {
     minHeight: 720,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: '#FAF6EE',
+    // Matches --paper in the QBO token set. This was still the pre-redesign
+    // cream, which flashed before the renderer painted.
+    backgroundColor: '#F4F5F8',
     title: 'Donkor & Sons — Rentals',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
+      // The interface reads a little large at 100% on a typical shop monitor.
+      // Zooming the whole page keeps the design system's proportions intact —
+      // type scale, spacing and hairlines all shrink together — where trimming
+      // individual tokens would distort them relative to each other.
+      zoomFactor: DEFAULT_ZOOM,
     },
   });
 
   win.on('ready-to-show', () => win.show());
+
+  // "A bit smaller" is a matter of taste and eyesight, so give the operator the
+  // usual desktop controls rather than making them live with one guess.
+  win.webContents.on('before-input-event', (event, input) => {
+    if (!input.control && !input.meta) return;
+    const current = win.webContents.getZoomFactor();
+    if (input.key === '=' || input.key === '+') {
+      win.webContents.setZoomFactor(Math.min(current + ZOOM_STEP, MAX_ZOOM));
+      event.preventDefault();
+    } else if (input.key === '-') {
+      win.webContents.setZoomFactor(Math.max(current - ZOOM_STEP, MIN_ZOOM));
+      event.preventDefault();
+    } else if (input.key === '0') {
+      win.webContents.setZoomFactor(DEFAULT_ZOOM);
+      event.preventDefault();
+    }
+  });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url);
@@ -54,7 +82,7 @@ function createMainWindow(): BrowserWindow {
 app.whenReady().then(() => {
   try {
     openDb();
-    if (!app.isPackaged) seedIfEmpty(getDb());
+    if (!app.isPackaged && hasCompanyProfile(getDb())) seedIfEmpty(getDb());
   } catch (err) {
     log.error('failed to open database', err);
     app.exit(1);
@@ -63,10 +91,6 @@ app.whenReady().then(() => {
   registerIpc();
   configureCrashReporting(getDb());
   configureUpdates(getDb());
-  syncTimer = setInterval(() => {
-    void drainOutbox(getDb(), getSupabaseClient()).catch((err) => log.warn('background sync failed', err));
-  }, 30_000);
-  void drainOutbox(getDb(), getSupabaseClient()).catch((err) => log.warn('initial sync failed', err));
   createMainWindow();
 
   app.on('activate', () => {
@@ -79,7 +103,6 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
-  if (syncTimer) clearInterval(syncTimer);
   stopUpdates();
   closeDb();
 });

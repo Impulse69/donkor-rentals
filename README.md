@@ -1,23 +1,23 @@
-# Donkor & Sons — Rental Management Software (v1.0.8)
+# Donkor & Sons — Rental Management Software (v1.3.0)
 
 Desktop rental management software designed for **Donkor & Sons (Ghana)**. This high-fidelity offline-first application automates and coordinates **event/party supplies rentals** (tents/canopies, chairs, sofas, tables, sound, lighting, decor) and **hearse fleet scheduling** for premium funeral services.
 
 ---
 
-## 🚀 Application Status: v1.0.8 (Production Ready)
+## 🚀 Application Status: v1.3.0 (Production Ready)
 
-The application has evolved past initial scaffold phases into a fully functional, robust desktop suite with continuous cloud synchronization.
+The application has evolved past initial scaffold phases into a fully functional, robust offline desktop suite with local backup and GitHub-based app updates.
 
 ### Key Features Delivered
 1. **Catalog & Inventory Management**: Fully typed soft-deletable catalog supporting bulk stock items (party supplies) and individual asset-tracked serial units (hearses).
 2. **Customer Rolodex**: Rich customer database with searchability, soft deletion, and history tracking.
 3. **Bookings & Smart Scheduling**: Dynamic, conflict-free scheduling engine. It enforces overlapping reservation guards and assigns drivers, pickup locations, and trackable odometer/fuel statuses for the hearse fleet. Includes full support for Walk-In Renters.
 4. **Invoicing & Ledger Math**: Generates contract sheets, manages security deposits, records partial payments in Ghanaian Cedis (₵), calculates late fees, and handles full returns/refunds.
-5. **Auto-Reconciliation & Outbox Sync**: Resilient offline functionality. Operations write to a local transactional SQLite database and an asynchronous outbox queue. Once online, these seamlessly sync with a remote Supabase Postgres database.
-6. **Damage Assessment & Photo Proofs**: On-return damage checklists with direct photo storage upload and automatic deduction calculations against the customer's held deposit.
+5. **Offline Company File**: Operations write to a local transactional SQLite database with explicit local backup and restore.
+6. **Damage Assessment & Photo Proofs**: On-return damage checklists with local photo references and automatic deduction calculations against the customer's held deposit.
 7. **Document Generation & Direct Printing**: Automatic PDF building for customized contracts, trip sheets, receipts, and invoices with instant print routing.
 8. **Owner & Admin Dashboards**: Dynamic charts representing utilization statistics, revenue cycles, outstanding balances, top clients, and active bookings.
-9. **Role-Based Security Gating**: Administrative controls for Owners and Managers, restricting destructive/void operations for general Staff. Secured User Creation flow.
+9. **Company Setup**: First-run setup captures company identity, TIN, fiscal year start, and Ghana Cedi defaults without requiring a login.
 
 ---
 
@@ -26,7 +26,7 @@ The application has evolved past initial scaffold phases into a fully functional
 - **Desktop Framework**: Electron (with secure isolated context bridge)
 - **Frontend UI Layer**: React + TypeScript + Vite
 - **Local Persistence**: SQLite via `better-sqlite3` (running strictly inside Electron's Node main process)
-- **Cloud Database & Auth**: Supabase (Postgres, Realtime, Storage, and Auth)
+- **Local Backup**: SQLite backup/restore with manifest files
 - **Form & Payload Validation**: Zod
 - **Distribution & Updates**: `electron-builder` + GitHub Releases auto-updating via `electron-updater`
 - **Regional Settings**: Ghana Locale: GHS (₵), `en-GB` format
@@ -38,13 +38,12 @@ The application has evolved past initial scaffold phases into a fully functional
 ```text
 donkor-rentals/
 ├── apps/desktop/
-│   ├── src/main/          # Electron Main Process (DB migrations, Repos, IPC handlers, Sync)
+│   ├── src/main/          # Electron Main Process (DB migrations, repos, IPC handlers, backup)
 │   ├── src/preload/       # Secure Context Bridge (API exposing, types)
 │   ├── src/renderer/      # React Renderer Process (UI components, styling, routing)
 │   └── electron-builder.yml
 ├── packages/shared/       # Shared Domain Schemas, validation models, and core utility logic
-├── packages/db/           # Shared database migration SQL scripts (mirrored sqlite/supabase)
-└── supabase/              # Supabase Cloud Database configurations, tables, and RLS policies
+└── packages/db/           # SQLite migration SQL scripts
 ```
 
 ---
@@ -183,3 +182,4 @@ const handleTaxUpdate = async () => {
   }
 };
 ```
+

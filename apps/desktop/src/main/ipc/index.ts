@@ -3,12 +3,15 @@ import { registerCatalogIpc } from './handlers/catalog';
 import { registerCustomersIpc } from './handlers/customers';
 import { registerBookingsIpc } from './handlers/bookings';
 import { registerInvoicesIpc } from './handlers/invoices';
-import { registerAuthIpc } from './handlers/auth';
-import { registerSyncIpc } from './handlers/sync';
+import { registerCompanyIpc } from './handlers/company';
 import { registerReturnsIpc } from './handlers/returns';
 import { registerDocumentsIpc } from './handlers/documents';
 import { registerReportsIpc } from './handlers/reports';
 import { registerSettingsIpc } from './handlers/settings';
+import { registerBackupIpc } from './handlers/backup';
+import { registerAccountingIpc } from './handlers/accounting';
+import { registerVendorsIpc } from './handlers/vendors';
+import { registerExpensesIpc } from './handlers/expenses';
 
 /**
  * IPC handler registration. The renderer reaches main only via these channels.
@@ -21,10 +24,13 @@ export function registerIpc(): void {
   registerCustomersIpc();
   registerBookingsIpc();
   registerInvoicesIpc();
-  registerAuthIpc();
-  registerSyncIpc();
+  registerCompanyIpc();
   registerReturnsIpc();
   registerDocumentsIpc();
   registerReportsIpc();
+  registerAccountingIpc();
+  registerVendorsIpc();
+  registerExpensesIpc();
   registerSettingsIpc();
+  registerBackupIpc();
 }

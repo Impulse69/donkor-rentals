@@ -1,69 +1,66 @@
 /*
-  Donkor & Sons — design tokens.
-  Neutral, dense operations-tool palette.
-  Near-white surfaces, near-black ink, slate-blue accent, hairline rules,
-  tabular figures everywhere.
+  Donkor & Sons design tokens.
+  QuickBooks Online-inspired palette for the renderer component layer.
 */
 
 :root {
   /* Surfaces ----------------------------------------------------------- */
-  --paper:        #F7F8FA;     /* page background */
-  --paper-tint:   #EFF1F4;     /* alternates, sticky table headers */
-  --paper-shade:  #E6E9EE;     /* deeper neutral fill */
+  --paper:        #F4F5F8;     /* page background */
+  --paper-tint:   #EDEEF2;     /* alternates, sticky table headers */
+  --paper-shade:  #E3E5EA;     /* deeper neutral fill */
   --panel:        #FFFFFF;     /* cards, modals */
   --panel-warm:   #F4F6F9;     /* highlighted card (was 'card-warm') */
-  --panel-shade:  #ECEFF3;     /* depressed surfaces, input affixes */
+  --panel-shade:  #F4F5F8;     /* depressed surfaces, input affixes */
 
-  /* Hairlines — soft cool grey, never solid black -------------------- */
-  --rule:         #E1E5EB;
-  --rule-strong:  #C5CCD5;
-  --rule-soft:    #ECEFF3;
+  /* Hairlines --------------------------------------------------------- */
+  --rule:         #D4D7DC;
+  --rule-strong:  #B9BEC7;
+  --rule-soft:    #E7E9ED;
 
-  /* Ink -------------------------------------------------------------- */
-  --ink:          #0F1722;     /* primary text */
-  --ink-2:        #1F2937;     /* slightly muted display ink */
-  --ink-mute:     #4B5563;     /* secondary text */
-  --ink-faint:    #8A93A0;     /* tertiary, captions, placeholders */
+  /* Ink --------------------------------------------------------------- */
+  --ink:          #393A3D;     /* primary text */
+  --ink-2:        #4F5155;     /* slightly muted display ink */
+  --ink-mute:     #6B6C72;     /* secondary text */
+  --ink-faint:    #8D8E94;     /* tertiary, captions, placeholders */
 
-  /* Accent — restrained slate-blue ---------------------------------- */
-  --accent:       #2D6CDF;
-  --accent-hover: #2558BC;
-  --accent-soft:  #E6EEFB;     /* tinted bg for selected nav, badges */
-  --accent-ring:  rgba(45, 108, 223, 0.22);  /* focus ring */
-  --accent-deep:  #1E468E;
+  /* Accent ------------------------------------------------------------ */
+  --accent:       #2CA01C;
+  --accent-hover: #108000;
+  --accent-soft:  #E3F2E1;     /* tinted bg for selected nav, badges */
+  --accent-ring:  rgba(44, 160, 28, 0.28);  /* focus ring */
+  --accent-deep:  #0D7000;
+  --link:         #0077C5;
+  --link-hover:   #005B96;
+  --nav-bg:       #393A3D;
+  --nav-fg:       #FFFFFF;
+  --nav-fg-mute:  #B7B7B7;
+  --nav-hover:    #4A4B4E;
+  --nav-active:   #2CA01C;
 
-  /* Semantic --------------------------------------------------------- */
-  --ok:           #15803D;
-  --ok-soft:      #E6F4EA;
-  --warn:         #B45309;
-  --warn-soft:    #FCEDDA;
-  --bad:          #B42318;
-  --bad-soft:     #FCE7E2;
-  --info:         #1B5BAA;
-  --info-soft:    #E4EDF8;
+  /* Semantic ---------------------------------------------------------- */
+  --ok:           #2CA01C;
+  --ok-soft:      #E3F2E1;
+  --warn:         #FF9931;
+  --warn-soft:    #FFF2E2;
+  --bad:          #D52B1E;
+  --bad-soft:     #FDE7E5;
+  --info:         #0077C5;
+  --info-soft:    #E1F0FA;
 
-  /* Legacy aliases kept so we don't bleed into invoice files we cannot
-     touch right now — they all map onto the new neutral palette. */
-  --gold:         var(--accent);
-  --gold-soft:    var(--accent-hover);
-  --gold-faint:   var(--accent-soft);
-  --gold-deep:    var(--accent-deep);
-  --paper-soft:   var(--paper-tint);
-
-  /* Shadows ---------------------------------------------------------- */
+  /* Shadows ----------------------------------------------------------- */
   --shadow-sm:    0 1px 2px rgba(15, 23, 34, 0.06);
   --shadow-md:    0 6px 18px rgba(15, 23, 34, 0.08);
   --shadow-lg:    0 24px 60px rgba(15, 23, 34, 0.18);
 
-  /* Typography ------------------------------------------------------- */
-  --font-display: 'Public Sans Variable', 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-body:    'Public Sans Variable', 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Typography -------------------------------------------------------- */
+  --font-display: 'Open Sans Variable', 'Open Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-body:    'Open Sans Variable', 'Open Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono:    'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 
-  /* Type scale — modest, tight for dense data UI -------------------- */
+  /* Type scale -------------------------------------------------------- */
   --t-xs:   11px;
   --t-sm:   12px;
-  --t-base: 13.5px;
+  --t-base: 14px;
   --t-md:   15px;
   --t-lg:   17px;
   --t-xl:   20px;
@@ -71,7 +68,7 @@
   --t-3xl:  30px;
   --t-display: 40px;
 
-  /* Spacing ---------------------------------------------------------- */
+  /* Spacing ----------------------------------------------------------- */
   --s-1:  4px;
   --s-2:  8px;
   --s-3:  12px;
@@ -83,17 +80,17 @@
   --s-10: 56px;
   --s-12: 72px;
 
-  /* Radii — small, software-tool feel ------------------------------- */
-  --r-sm: 3px;
-  --r-md: 5px;
+  /* Radii ------------------------------------------------------------- */
+  --r-sm: 4px;
+  --r-md: 6px;
   --r-lg: 8px;
   --r-xl: 12px;
 
-  /* Layout ----------------------------------------------------------- */
-  --shell-sidebar-w: 232px;
-  --shell-topbar-h:  52px;
+  /* Layout ------------------------------------------------------------ */
+  --shell-sidebar-w: 224px;
+  --shell-topbar-h:  56px;
 
-  /* Motion ----------------------------------------------------------- */
+  /* Motion ------------------------------------------------------------ */
   --ease:  cubic-bezier(0.2, 0.8, 0.2, 1);
   --dur-1: 120ms;
   --dur-2: 200ms;

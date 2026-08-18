@@ -40,7 +40,7 @@ export default function CatalogDetail(): JSX.Element {
         <EmptyState
           title="Item not found"
           body="It may have been removed or never existed in this database."
-          actions={<Link to={paths.catalog.list}><Button variant="primary">Back to catalog</Button></Link>}
+          actions={<Link to={paths.catalog.list}><Button variant="primary">Back to products and services</Button></Link>}
         />
       </div>
     );

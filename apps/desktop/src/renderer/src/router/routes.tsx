@@ -3,7 +3,7 @@ import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 /**
  * Route definitions. Single source of truth used by:
  *  - the `<Routes>` tree (App.tsx)
- *  - the sidebar nav (driven by `nav: true` entries)
+ *  - the sidebar nav (driven by `nav` entries)
  *  - the breadcrumb resolver (uses `crumb`)
  *
  * Keep nesting flat. Children are explicit and indexed by parent path.
@@ -14,7 +14,7 @@ export interface RouteDef {
   crumb: string | ((params: Readonly<Record<string, string>>) => string);
   nav?: {
     label: string;
-    glyph: string; // monospace mark, e.g. '01'
+    icon: 'dashboard' | 'invoice' | 'customers' | 'bookings' | 'products' | 'returns' | 'calendar' | 'reports' | 'expenses' | 'vendors' | 'chart' | 'journal' | 'taxes';
     section?: string;
   };
 }
@@ -49,9 +49,28 @@ const Returns = {
   Form: lazy(() => import('../routes/returns/Form')),
 };
 
-const Reconciliation = lazy(() => import('../routes/Reconciliation'));
+const Expenses = {
+  List: lazy(() => import('../routes/expenses/List')),
+  Form: lazy(() => import('../routes/expenses/Form')),
+  Detail: lazy(() => import('../routes/expenses/Detail')),
+};
+
+const Vendors = {
+  List: lazy(() => import('../routes/expenses/VendorsList')),
+  Form: lazy(() => import('../routes/expenses/VendorForm')),
+  Detail: lazy(() => import('../routes/expenses/VendorDetail')),
+};
+
+const Accounting = {
+  Chart: lazy(() => import('../routes/accounting/Chart')),
+  Register: lazy(() => import('../routes/accounting/Register')),
+  JournalList: lazy(() => import('../routes/accounting/JournalList')),
+  JournalForm: lazy(() => import('../routes/accounting/JournalForm')),
+};
+
 const Settings = lazy(() => import('../routes/Settings'));
 const Reports = lazy(() => import('../routes/Reports'));
+const Taxes = lazy(() => import('../routes/Taxes'));
 const Dashboard = lazy(() => import('../routes/Dashboard'));
 
 export const routes: RouteDef[] = [
@@ -59,24 +78,24 @@ export const routes: RouteDef[] = [
     path: '/',
     element: Dashboard,
     crumb: 'Dashboard',
-    nav: { label: 'Dashboard', glyph: '00', section: 'WORKSPACE' },
+    nav: { label: 'Dashboard', icon: 'dashboard' },
   },
 
   {
     path: '/catalog',
     element: Catalog.List,
-    crumb: 'Catalog',
-    nav: { label: 'Catalog', glyph: '01', section: 'OPERATIONS' },
+    crumb: 'Products and Services',
+    nav: { label: 'Products and Services', icon: 'products', section: 'SALES' },
   },
-  { path: '/catalog/new', element: Catalog.Form, crumb: 'New item' },
-  { path: '/catalog/:id', element: Catalog.Detail, crumb: 'Item' },
-  { path: '/catalog/:id/edit', element: Catalog.Form, crumb: 'Edit' },
+  { path: '/catalog/new', element: Catalog.Form, crumb: 'New product or service' },
+  { path: '/catalog/:id', element: Catalog.Detail, crumb: 'Product or service' },
+  { path: '/catalog/:id/edit', element: Catalog.Form, crumb: 'Edit product or service' },
 
   {
     path: '/customers',
     element: Customers.List,
     crumb: 'Customers',
-    nav: { label: 'Customers', glyph: '02', section: 'OPERATIONS' },
+    nav: { label: 'Customers', icon: 'customers', section: 'SALES' },
   },
   { path: '/customers/new', element: Customers.Form, crumb: 'New customer' },
   { path: '/customers/:id', element: Customers.Detail, crumb: 'Customer' },
@@ -86,9 +105,14 @@ export const routes: RouteDef[] = [
     path: '/bookings',
     element: Bookings.List,
     crumb: 'Bookings',
-    nav: { label: 'Bookings', glyph: '03', section: 'OPERATIONS' },
+    nav: { label: 'Bookings', icon: 'bookings', section: 'SALES' },
   },
-  { path: '/bookings/calendar', element: Bookings.Calendar, crumb: 'Calendar' },
+  {
+    path: '/bookings/calendar',
+    element: Bookings.Calendar,
+    crumb: 'Calendar',
+    nav: { label: 'Calendar', icon: 'calendar', section: 'RENTALS' },
+  },
   { path: '/bookings/new', element: Bookings.Form, crumb: 'New booking' },
   { path: '/bookings/:id', element: Bookings.Detail, crumb: 'Booking' },
   { path: '/bookings/:id/edit', element: Bookings.Form, crumb: 'Edit' },
@@ -97,41 +121,72 @@ export const routes: RouteDef[] = [
     path: '/invoices',
     element: Invoices.List,
     crumb: 'Invoices',
-    nav: { label: 'Invoices', glyph: '04', section: 'OPERATIONS' },
+    nav: { label: 'Invoices', icon: 'invoice', section: 'SALES' },
   },
   { path: '/invoices/new', element: Invoices.New, crumb: 'New invoice' },
   { path: '/invoices/:id', element: Invoices.Detail, crumb: 'Invoice' },
 
   {
-    path: '/reconciliation',
-    element: Reconciliation,
-    crumb: 'Reconciliation',
-    // nav: { label: 'Reconciliation', glyph: '07', section: 'ADMIN' },
-  },
-  {
     path: '/returns',
     element: Returns.List,
     crumb: 'Returns',
-    nav: { label: 'Returns', glyph: '05', section: 'OPERATIONS' },
+    nav: { label: 'Returns', icon: 'returns', section: 'RENTALS' },
   },
   { path: '/returns/new/:bookingId', element: Returns.Form, crumb: 'New return' },
+  {
+    path: '/expenses',
+    element: Expenses.List,
+    crumb: 'Expenses',
+    nav: { label: 'Expenses', icon: 'expenses', section: 'EXPENSES' },
+  },
+  { path: '/expenses/new', element: Expenses.Form, crumb: 'New expense' },
+  { path: '/expenses/:id', element: Expenses.Detail, crumb: 'Expense' },
+  {
+    path: '/expenses/vendors',
+    element: Vendors.List,
+    crumb: 'Vendors',
+    nav: { label: 'Vendors', icon: 'vendors', section: 'EXPENSES' },
+  },
+  { path: '/expenses/vendors/new', element: Vendors.Form, crumb: 'New vendor' },
+  { path: '/expenses/vendors/:id', element: Vendors.Detail, crumb: 'Vendor' },
+  { path: '/expenses/vendors/:id/edit', element: Vendors.Form, crumb: 'Edit vendor' },
+  {
+    path: '/accounting/chart',
+    element: Accounting.Chart,
+    crumb: 'Chart of Accounts',
+    nav: { label: 'Chart of Accounts', icon: 'chart', section: 'ACCOUNTING' },
+  },
+  { path: '/accounting/accounts/:id', element: Accounting.Register, crumb: 'Account register' },
+  {
+    path: '/accounting/journal',
+    element: Accounting.JournalList,
+    crumb: 'Journal Entries',
+    nav: { label: 'Journal Entries', icon: 'journal', section: 'ACCOUNTING' },
+  },
+  { path: '/accounting/journal/new', element: Accounting.JournalForm, crumb: 'New journal entry' },
+  { path: '/accounting/journal/:id', element: Accounting.JournalForm, crumb: 'Journal entry' },
   {
     path: '/reports',
     element: Reports,
     crumb: 'Reports',
-    nav: { label: 'Reports', glyph: '06', section: 'OPERATIONS' },
+    nav: { label: 'Reports', icon: 'reports', section: 'REPORTS' },
+  },
+  {
+    path: '/taxes',
+    element: Taxes,
+    crumb: 'Taxes',
+    nav: { label: 'Taxes', icon: 'taxes', section: 'TAXES' },
   },
   {
     path: '/settings',
     element: Settings,
     crumb: 'Settings',
-    nav: { label: 'Settings', glyph: '08', section: 'ADMIN' },
   },
 ];
 
 /**
  * Resolve breadcrumb trail from a pathname.
- * Always begins with the root entry, then matches each prefix progressively.
+ * Always begins with the root entry and keeps only the immediate parent/current page.
  */
 export function resolveCrumbs(
   pathname: string,
@@ -139,14 +194,23 @@ export function resolveCrumbs(
 ): Array<{ to: string; label: string }> {
   const segments = pathname.split('/').filter(Boolean);
   const trail: Array<{ to: string; label: string }> = [{ to: '/', label: 'Donkor & Sons' }];
-  let acc = '';
-  for (const seg of segments) {
-    acc += `/${seg}`;
-    const def = matchPath(acc);
-    if (!def) continue;
-    const label = typeof def.crumb === 'function' ? def.crumb(params) : def.crumb;
-    trail.push({ to: acc, label });
+  if (segments.length === 0) return trail;
+
+  const parentPath = segments.length > 1 ? `/${segments[0]}` : pathname;
+  const parentDef = matchPath(parentPath);
+  if (parentDef && parentPath !== '/') {
+    const label = typeof parentDef.crumb === 'function' ? parentDef.crumb(params) : parentDef.crumb;
+    trail.push({ to: parentPath, label });
   }
+
+  if (pathname !== parentPath) {
+    const currentDef = matchPath(pathname);
+    if (currentDef) {
+      const label = typeof currentDef.crumb === 'function' ? currentDef.crumb(params) : currentDef.crumb;
+      trail.push({ to: pathname, label });
+    }
+  }
+
   return trail;
 }
 

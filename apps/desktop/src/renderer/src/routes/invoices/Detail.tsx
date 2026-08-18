@@ -13,6 +13,7 @@ import {
 import { printHtml } from '../../lib/print';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
+import { StatusPill, type StatusPillStatus } from '../../components/StatusPill';
 import { Spinner } from '../../components/Spinner';
 import { EmptyState } from '../../components/EmptyState';
 import { Alert } from '../../components/Alert';
@@ -31,7 +32,27 @@ import {
   type PaymentKind,
   type PaymentMethod,
 } from '@shared/schemas';
-import { invoiceStatusTone, paymentKindTone } from './helpers';
+import { paymentKindTone } from './helpers';
+
+function customerLabel(row: { customer_name?: string | null; renter_name?: string | null }): string {
+  return row.customer_name?.trim() || row.renter_name?.trim() || 'Walk-in rental';
+}
+
+function invoiceDetailStatus(row: {
+  status: InvoiceStatus;
+  due_at: string | null;
+  balance_due_pesewas: number;
+}): StatusPillStatus {
+  if (
+    row.status === 'issued'
+    && row.balance_due_pesewas > 0
+    && row.due_at
+    && new Date(row.due_at).getTime() < Date.now()
+  ) {
+    return 'overdue';
+  }
+  return row.status;
+}
 
 export default function InvoiceDetail(): JSX.Element {
   const { id = '' } = useParams();
@@ -62,6 +83,8 @@ export default function InvoiceDetail(): JSX.Element {
   }
 
   const inv = invoice.data;
+  const billTo = customerLabel(inv);
+  const paymentTerms = `${inv.initial_payment_percent}% initial / ${inv.before_delivery_percent}% before delivery`;
 
   async function moveStatus(next: InvoiceStatus): Promise<void> {
     setStatusBusy(true);
@@ -135,7 +158,7 @@ export default function InvoiceDetail(): JSX.Element {
   const previewSimpleTotal = Math.max(0, subtotalP - discountP);
 
   return (
-    <div className="page fade-up" style={{ maxWidth: 1180 }}>
+    <div className="page invoice-page fade-up" style={{ maxWidth: 1180 }}>
       <Modal
         open={printOpen}
         onClose={() => { if (!docBusy) setPrintOpen(false); }}
@@ -203,44 +226,21 @@ export default function InvoiceDetail(): JSX.Element {
         )}
       </Modal>
 
-      <header className="page-head">
-        <div>
-          <div className="page-eyebrow">Operations · Receivables</div>
-          <h1 className="page-title" style={{ fontStyle: 'normal' }}>{inv.number}</h1>
-          <div className="row" style={{ marginTop: 10, gap: 10 }}>
-            <Badge tone={invoiceStatusTone(inv.status)} dot>{INVOICE_STATUS_LABELS[inv.status]}</Badge>
-            <span className="muted">·</span>
-            <span>{inv.customer_name}</span>
-            <span className="muted">·</span>
-            <span className="mono" style={{ fontSize: 13 }}>
-              {formatDate(inv.booking_starts_at)} → {formatDate(inv.booking_ends_at)}
-            </span>
+      <header className="invoice-hero">
+        <div className="invoice-hero-main">
+          <div className="page-eyebrow">Operations / Receivables</div>
+          <div className="invoice-title-row">
+            <h1 className="page-title invoice-title">{inv.number}</h1>
+            <StatusPill status={invoiceDetailStatus(inv)} />
+          </div>
+          <div className="invoice-subline">
+            <span>{billTo}</span>
+            <span className="mono">{formatDate(inv.booking_starts_at)} to {formatDate(inv.booking_ends_at)}</span>
           </div>
         </div>
-        <div className="page-actions">
-          {inv.status === 'draft' && (
-            <Button variant="primary" loading={statusBusy} onClick={() => { void moveStatus('issued'); }}>
-              Issue invoice
-            </Button>
-          )}
-          {inv.status !== 'void' && inv.status !== 'paid' && (
-            <Button onClick={() => setShowPay((v) => !v)}>
-              {showPay ? 'Cancel payment' : '+ Record payment'}
-            </Button>
-          )}
-          {inv.status === 'paid' && inv.payments.length > 0 ? (
-            <Button loading={docBusy} onClick={() => {
-              const latestPayment = inv.payments[inv.payments.length - 1];
-              void generateReceipt(latestPayment.id);
-            }}>Print receipt</Button>
-          ) : (
-            <Button onClick={openPrintChooser}>Print invoice…</Button>
-          )}
-          {(inv.status === 'draft' || inv.status === 'issued') && (
-            <Button variant="danger" loading={statusBusy} onClick={() => { void moveStatus('void'); }}>
-              Void
-            </Button>
-          )}
+        <div className="invoice-balance-box">
+          <span>Balance due</span>
+          <strong>{formatGhs(inv.balance_due_pesewas)}</strong>
         </div>
       </header>
 
@@ -254,26 +254,40 @@ export default function InvoiceDetail(): JSX.Element {
         />
       )}
 
-      <div className="detail-grid fade-up fade-up-1">
-        <div className="card">
-          <h3 className="card-title">Lines</h3>
-          <div className="dtable-wrap" style={{ marginTop: 6 }}>
+      <section className="invoice-meta-band fade-up fade-up-1">
+        <div>
+          <span className="invoice-meta-label">Bill to</span>
+          <strong>{billTo}</strong>
+          <Link to={paths.bookings.detail(inv.booking_id)}>Open booking</Link>
+        </div>
+        <div className="invoice-meta-dates">
+          <KV label="Invoice date" value={inv.issued_at ? formatDate(inv.issued_at) : 'Draft'} />
+          <KV label="Due date" value={inv.due_at ? formatDate(inv.due_at) : '--'} />
+          <KV label="Terms" value={paymentTerms} />
+        </div>
+      </section>
+
+      <div className="invoice-sheet fade-up fade-up-2">
+        <section>
+          <div className="dtable-wrap invoice-lines">
             <table className="dtable">
               <thead>
                 <tr>
+                  <th style={{ width: 52 }}>#</th>
+                  <th>Product or service</th>
                   <th>Description</th>
                   <th className="num">Qty</th>
-                  <th className="num">Days</th>
-                  <th className="num">Unit price</th>
-                  <th className="num">Line total</th>
+                  <th className="num">Rate</th>
+                  <th className="num">Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {inv.lines.map((l) => (
+                {inv.lines.map((l, index) => (
                   <tr key={l.id}>
+                    <td className="mono faint">{index + 1}</td>
                     <td>{l.description}</td>
+                    <td>{l.days} day{l.days === 1 ? '' : 's'} rental</td>
                     <td className="num">{l.quantity}</td>
-                    <td className="num">{l.days}</td>
                     <td className="num">{formatGhs(l.unit_price_pesewas)}</td>
                     <td className="num">{formatGhs(l.line_total_pesewas)}</td>
                   </tr>
@@ -282,57 +296,51 @@ export default function InvoiceDetail(): JSX.Element {
             </table>
           </div>
 
-          <div style={{ marginTop: 14, padding: '12px 14px', borderTop: '1px solid var(--rule)' }}>
-            <div className="row" style={{ gap: 8, marginBottom: 8 }}>
+          <div className="invoice-summary-row">
+            <div className="invoice-format-note">
               <Badge tone={inv.include_statutory_taxes ? 'gold' : 'neutral'}>
                 {inv.include_statutory_taxes ? 'Statutory' : 'Simple'}
               </Badge>
-              <span className="muted" style={{ fontSize: 12 }}>
-                Initial {inv.initial_payment_percent}% · Before Delivery {inv.before_delivery_percent}%
-              </span>
+              <span className="muted">{paymentTerms}</span>
             </div>
-            <KV label="Subtotal" value={formatGhs(inv.subtotal_pesewas)} />
-            {inv.include_statutory_taxes && (
-              <>
-                <KV label="NHIL (2.5%)" value={formatGhs(inv.nhil_pesewas)} />
-                <KV label="GETFund (2.5%)" value={formatGhs(inv.getfund_pesewas)} />
-                <KV label="VAT (15%)" value={formatGhs(inv.vat_pesewas)} />
-              </>
-            )}
-            {inv.tax_pesewas > 0 && <KV label="Other tax" value={formatGhs(inv.tax_pesewas)} />}
-            {inv.discount_pesewas > 0 && <KV label="Discount" value={`− ${formatGhs(inv.discount_pesewas)}`} />}
-            <div style={{ borderTop: '1px solid var(--rule-soft)', margin: '8px 0' }} />
-            <KV label="Total Amount" value={formatGhs(inv.total_pesewas)} bold />
-            <KV label="Paid" value={formatGhs(inv.amount_paid_pesewas)} />
-            <KV
-              label="Balance due"
-              value={formatGhs(inv.balance_due_pesewas)}
-              bold
-              tone={inv.balance_due_pesewas > 0 ? 'bad' : 'ok'}
-            />
+            <table className="invoice-totals">
+              <tbody>
+                <tr><td>Subtotal</td><td className="num">{formatGhs(inv.subtotal_pesewas)}</td></tr>
+                {inv.include_statutory_taxes && (
+                  <>
+                    <tr><td>NHIL</td><td className="num">{formatGhs(inv.nhil_pesewas)}</td></tr>
+                    <tr><td>GETFund</td><td className="num">{formatGhs(inv.getfund_pesewas)}</td></tr>
+                    <tr><td>VAT</td><td className="num">{formatGhs(inv.vat_pesewas)}</td></tr>
+                  </>
+                )}
+                {inv.tax_pesewas > 0 && <tr><td>Other tax</td><td className="num">{formatGhs(inv.tax_pesewas)}</td></tr>}
+                <tr><td>Discount</td><td className="num">{inv.discount_pesewas > 0 ? `- ${formatGhs(inv.discount_pesewas)}` : formatGhs(0)}</td></tr>
+                <tr className="is-total"><td>Total</td><td className="num">{formatGhs(inv.total_pesewas)}</td></tr>
+                <tr><td>Payments received</td><td className="num">{formatGhs(inv.amount_paid_pesewas)}</td></tr>
+                <tr className="is-balance"><td>Balance due</td><td className="num">{formatGhs(inv.balance_due_pesewas)}</td></tr>
+              </tbody>
+            </table>
           </div>
 
           {inv.notes && (
-            <div className="detail-row" style={{ marginTop: 16 }}>
+            <div className="detail-row invoice-notes">
               <span className="detail-key">Notes</span>
               <span className="detail-val" style={{ whiteSpace: 'pre-wrap' }}>{inv.notes}</span>
             </div>
           )}
 
-          <h3 className="card-title" style={{ marginTop: 'var(--s-7)' }}>Payments</h3>
+          <h3 className="card-title invoice-section-title">Payments</h3>
           {inv.payments.length === 0 ? (
-            <p className="muted" style={{ fontStyle: 'italic', marginTop: 4 }}>
-              No payments recorded yet.
-            </p>
+            <div className="invoice-empty-row">No payments recorded yet.</div>
           ) : (
             <div className="dtable-wrap" style={{ marginTop: 6 }}>
               <table className="dtable">
                 <thead>
                   <tr>
-                    <th style={{ width: 140 }}>When</th>
-                    <th>Kind</th>
+                    <th style={{ width: 140 }}>Date</th>
                     <th>Method</th>
                     <th>Reference</th>
+                    <th>Kind</th>
                     <th className="num">Amount</th>
                     <th />
                   </tr>
@@ -341,13 +349,13 @@ export default function InvoiceDetail(): JSX.Element {
                   {inv.payments.map((p) => (
                     <tr key={p.id} style={{ cursor: 'default' }}>
                       <td className="mono" style={{ fontSize: 13 }}>{formatDateTime(p.paid_at)}</td>
-                      <td><Badge tone={paymentKindTone(p.kind)}>{PAYMENT_KIND_LABELS[p.kind]}</Badge></td>
                       <td>{PAYMENT_METHOD_LABELS[p.method as PaymentMethod] ?? p.method}</td>
-                      <td className="mono" style={{ fontSize: 12 }}>{p.reference || <span className="faint">—</span>}</td>
+                      <td className="mono" style={{ fontSize: 12 }}>{p.reference || <span className="faint">--</span>}</td>
+                      <td><Badge tone={paymentKindTone(p.kind)}>{PAYMENT_KIND_LABELS[p.kind]}</Badge></td>
                       <td className="num">
-                        {p.kind === 'refund' ? '− ' : ''}{formatGhs(p.amount_pesewas)}
+                        {p.kind === 'refund' ? '- ' : ''}{formatGhs(p.amount_pesewas)}
                       </td>
-                      <td>
+                      <td className="invoice-payment-actions">
                         <Button size="sm" variant="ghost" onClick={() => { void generateReceipt(p.id); }}>
                           Print receipt
                         </Button>
@@ -361,38 +369,60 @@ export default function InvoiceDetail(): JSX.Element {
               </table>
             </div>
           )}
-        </div>
+        </section>
 
-        <div className="stack">
+        <section className="invoice-support">
           <div className="card card-warm">
             <span className="eyebrow">Booking</span>
-            <h3 style={{ marginTop: 6 }}>{inv.customer_name}</h3>
-            <div className="muted mono" style={{ fontSize: 13, marginTop: 2 }}>
-              {formatDate(inv.booking_starts_at)} → {formatDate(inv.booking_ends_at)}
-            </div>
-            <Link to={paths.bookings.detail(inv.booking_id)} style={{ fontSize: 13, marginTop: 8, display: 'inline-block' }}>
-              Open booking →
-            </Link>
-            {inv.due_at && (
-              <div style={{ marginTop: 10 }}>
-                <span className="eyebrow">Due</span>
-                <div className="mono" style={{ fontSize: 14 }}>{formatDate(inv.due_at)}</div>
-              </div>
-            )}
-            {inv.issued_at && (
-              <div style={{ marginTop: 10 }}>
-                <span className="eyebrow">Issued</span>
-                <div className="mono" style={{ fontSize: 14 }}>{formatDateTime(inv.issued_at)}</div>
-              </div>
-            )}
+            <h3>{billTo}</h3>
+            <KV label="Rental window" value={`${formatDate(inv.booking_starts_at)} to ${formatDate(inv.booking_ends_at)}`} />
+            {inv.issued_at && <KV label="Issued" value={formatDateTime(inv.issued_at)} />}
+            {inv.due_at && <KV label="Due" value={formatDate(inv.due_at)} />}
           </div>
           <AuditCard createdAt={inv.created_at} updatedAt={inv.updated_at} id={inv.id} />
+        </section>
+      </div>
+
+      <div className="invoice-actionbar" role="toolbar" aria-label="Invoice actions">
+        <div className="invoice-actionbar-left">
+          <Link to={paths.invoices.list}>
+            <Button variant="ghost">Cancel</Button>
+          </Link>
+        </div>
+        <div className="invoice-actionbar-right">
+          {inv.status !== 'void' && inv.status !== 'paid' && (
+            <Button onClick={() => setShowPay((v) => !v)}>
+              {showPay ? 'Cancel payment' : 'Record payment'}
+            </Button>
+          )}
+          {inv.status === 'paid' && inv.payments.length > 0 ? (
+            <Button loading={docBusy} onClick={() => {
+              const latestPayment = inv.payments[inv.payments.length - 1];
+              void generateReceipt(latestPayment.id);
+            }}>Print receipt</Button>
+          ) : (
+            <Button onClick={openPrintChooser}>Print</Button>
+          )}
+          {(inv.status === 'draft' || inv.status === 'issued') && (
+            <Button variant="danger" loading={statusBusy} onClick={() => { void moveStatus('void'); }}>
+              Void
+            </Button>
+          )}
+          {inv.status === 'draft' && (
+            <Button variant="primary" loading={statusBusy} onClick={() => { void moveStatus('issued'); }}>
+              Save and issue
+            </Button>
+          )}
+          {inv.status !== 'draft' && (
+            <Button variant="primary" disabled>
+              Save
+            </Button>
+          )}
         </div>
       </div>
     </div>
   );
 }
-
 function PaymentForm({
   invoiceId,
   balance,
@@ -553,4 +583,5 @@ function PrintFormatOption({
     </button>
   );
 }
+
 

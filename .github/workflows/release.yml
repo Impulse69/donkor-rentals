@@ -35,6 +35,4 @@ jobs:
       - name: Build & publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DONKOR_SUPABASE_URL: ${{ secrets.DONKOR_SUPABASE_URL }}
-          DONKOR_SUPABASE_ANON_KEY: ${{ secrets.DONKOR_SUPABASE_ANON_KEY }}
         run: pnpm release

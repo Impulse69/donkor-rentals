@@ -2,6 +2,9 @@ import type { Database } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import { reconcileDeposit } from '@shared/returns';
 import type { DamageLine, DamagePhoto, ReturnCreateInput, ReturnRecord } from '@shared/schemas';
+import { buildReturnReconciledEntry, postOnce } from '../accounting/posting';
+import { resolveAccount } from '../accounting/chart';
+import { toEntryDate } from '../accounting/dates';
 
 const RETURN_COLS = `id, tenant_id, booking_id, returned_at, received_by, notes,
   deposit_pesewas, total_charges_pesewas, refund_pesewas, balance_due_pesewas,
@@ -74,8 +77,8 @@ export function getReturn(db: Database, tenantId: string, id: string): ReturnWit
 
 export function createReturn(db: Database, tenantId: string, input: ReturnCreateInput): ReturnWithLines {
   const booking = db
-    .prepare(`SELECT id FROM bookings WHERE id = @id AND tenant_id = @tenant_id AND deleted_at IS NULL`)
-    .get({ id: input.booking_id, tenant_id: tenantId }) as { id: string } | undefined;
+    .prepare(`SELECT id, customer_id FROM bookings WHERE id = @id AND tenant_id = @tenant_id AND deleted_at IS NULL`)
+    .get({ id: input.booking_id, tenant_id: tenantId }) as { id: string; customer_id: string | null } | undefined;
   if (!booking) throw new Error('createReturn: booking not found');
 
   const existing = db
@@ -150,6 +153,17 @@ export function createReturn(db: Database, tenantId: string, input: ReturnCreate
 
     db.prepare(`UPDATE bookings SET status = 'returned', updated_at = @t WHERE id = @id AND tenant_id = @tenant_id`)
       .run({ id: input.booking_id, tenant_id: tenantId, t: now });
+
+    postOnce(db, tenantId, buildReturnReconciledEntry({
+      entry_date: toEntryDate(input.returned_at),
+      return_id: id,
+      customer_deposits_account_id: resolveAccount(db, tenantId, 'customer_deposits'),
+      ar_account_id: resolveAccount(db, tenantId, 'ar'),
+      damage_recovery_account_id: resolveAccount(db, tenantId, 'income.damage_recovery'),
+      deposit_pesewas: reconciliation.deposit_pesewas,
+      total_charges_pesewas: reconciliation.total_charges_pesewas,
+      customer_id: booking.customer_id,
+    }));
   });
   tx();
 

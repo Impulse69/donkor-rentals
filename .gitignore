@@ -1,4 +1,5 @@
 node_modules/
+.pnpm-store/
 dist/
 out/
 release/
@@ -32,3 +33,7 @@ supabase/.temp/
 
 # OS
 desktop.ini
+
+# Playwright
+test-results/
+playwright-report/

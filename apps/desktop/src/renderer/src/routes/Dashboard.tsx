@@ -1,159 +1,214 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useMemo } from 'react';
 import { useAsync } from '../lib/useAsync';
 import { api } from '../lib/api';
-import { formatGhs } from '../lib/format';
+import { formatGhs, formatDate } from '../lib/format';
 import { paths } from '../router/paths';
+import { Button } from '../components/Button';
+import { EmptyState } from '../components/EmptyState';
+import { MoneyBar, type MoneyBarEntry } from '../components/MoneyBar';
 import { Skeleton } from '../components/Skeleton';
+import { Spinner } from '../components/Spinner';
+import { BOOKING_STATUS_LABELS, type BookingStatus } from '@shared/schemas';
+
+interface InvoiceSummaryRow {
+  status: 'draft' | 'issued' | 'paid' | 'void';
+  due_at: string | null;
+  balance_due_pesewas: number;
+  amount_paid_pesewas: number;
+}
+
+interface BookingRow {
+  id: string;
+  status: BookingStatus;
+  customer_name: string;
+  starts_at: string;
+  ends_at: string;
+  updated_at: string;
+}
 
 export default function Dashboard(): JSX.Element {
+  const navigate = useNavigate();
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-  const items = useAsync(() => api.catalog.list({}), []);
-  const customers = useAsync(() => api.customers.list({}), []);
   const activeBookings = useAsync(
     () =>
       Promise.all([
         api.bookings.list({ status: 'reserved' }),
         api.bookings.list({ status: 'out' }),
-      ]).then(([rs, os]) => [...rs, ...os]),
+      ]).then(([rs, os]) => [...rs, ...os] as BookingRow[]),
     [],
   );
-  const outstanding = useAsync(
-    () =>
-      Promise.all([
-        api.invoices.list({ status: 'issued' }),
-        api.invoices.list({ status: 'draft' }),
-      ]).then(([a, b]) => [...a, ...b]),
-    [],
-  );
+  const invoices = useAsync(() => api.invoices.list({}), []);
   const overview = useAsync(() => api.reports.overview(), []);
+  const invoiceRows = useMemo(
+    () => (invoices.status === 'ok' ? invoices.data as InvoiceSummaryRow[] : []),
+    [invoices.status, invoices.data],
+  );
+  const bookingRows = useMemo(
+    () => (activeBookings.status === 'ok' ? activeBookings.data : []),
+    [activeBookings.status, activeBookings.data],
+  );
 
-  const customerCount = customers.status === 'ok' ? customers.data.length : null;
-  const fleetCount = items.status === 'ok' ? items.data.filter((i) => i.kind === 'hearse').length : null;
-  const supplyCount = items.status === 'ok'
-    ? items.data.filter((i) => i.kind === 'party_supply').reduce((sum, i) => sum + i.total_quantity, 0)
+  const receivables = useMemo<MoneyBarEntry[]>(() => {
+    const now = Date.now();
+    let overdue = 0;
+    let notDue = 0;
+    let paid = 0;
+
+    for (const row of invoiceRows) {
+      if (row.status === 'void' || row.status === 'draft') continue;
+      if (isOverdue(row, now)) overdue += row.balance_due_pesewas;
+      else if (row.balance_due_pesewas > 0) notDue += row.balance_due_pesewas;
+      paid += row.amount_paid_pesewas;
+    }
+
+    return [
+      { label: 'Overdue', amountPesewas: overdue, tone: 'bad', onClick: () => navigate(`${paths.invoices.list}?view=overdue`) },
+      { label: 'Not due yet', amountPesewas: notDue, tone: 'info', onClick: () => navigate(`${paths.invoices.list}?view=not-due`) },
+      { label: 'Paid', amountPesewas: paid, tone: 'ok', onClick: () => navigate(`${paths.invoices.list}?view=paid`) },
+    ];
+  }, [invoiceRows, navigate]);
+
+  const bookingCounts = useMemo(() => {
+    return {
+      today: bookingRows.filter((row) => overlaps(row, startOfToday(), endOfToday())).length,
+      week: bookingRows.filter((row) => overlaps(row, startOfToday(), endOfThisWeek())).length,
+    };
+  }, [bookingRows]);
+
+  const recent = [...bookingRows].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 6);
+  const outstanding = invoices.status === 'ok'
+    ? invoiceRows.reduce((sum, row) => sum + row.balance_due_pesewas, 0)
     : null;
-  const portfolioValue = items.status === 'ok'
-    ? items.data.reduce((sum, i) => sum + i.replacement_value_pesewas * i.total_quantity, 0)
-    : null;
-  const activeCount = activeBookings.status === 'ok' ? activeBookings.data.length : null;
-  const outstandingTotal = outstanding.status === 'ok'
-    ? outstanding.data.reduce((sum, r) => sum + r.balance_due_pesewas, 0)
-    : null;
-  const todayRevenue = overview.status === 'ok' ? overview.data.revenue_today_pesewas : null;
+  const activeCount = overview.status === 'ok' ? overview.data.active_bookings : null;
 
   return (
-    <div className="page fade-up">
+    <div className="page fade-up" style={{ maxWidth: 1240 }}>
       <header className="page-head">
         <div>
-          <div className="page-eyebrow">Workspace · Today</div>
+          <div className="page-eyebrow">Workspace / Today</div>
           <h1 className="page-title">{greeting}.</h1>
           <p className="muted" style={{ maxWidth: 560, marginTop: 8, lineHeight: 1.55 }}>
-            Active bookings, outstanding receivables, and inventory at a glance. Jump to
-            any module from the sidebar.
+            Active bookings, receivables, and recent movement across Donkor & Sons.
           </p>
         </div>
         <div className="page-actions">
-          <Link to={paths.bookings.new}><button type="button" className="btn btn-primary btn-md">+ New booking</button></Link>
+          <Link to={paths.bookings.new}><Button variant="primary">New booking</Button></Link>
         </div>
       </header>
 
-      <section className="grid-3 fade-up fade-up-1">
-        <Stat
-          label="Active bookings"
-          value={activeCount === null ? null : activeCount.toLocaleString('en-GB')}
-          hint="Reserved or on the road"
-          to={paths.bookings.list}
-        />
-        <Stat
-          label="Outstanding receivables"
-          value={outstandingTotal === null ? null : formatGhs(outstandingTotal)}
-          hint="Across draft + issued invoices"
-          to={paths.invoices.list}
-          mono
-        />
-        <Stat
-          label="Revenue today"
-          value={todayRevenue === null ? null : formatGhs(todayRevenue)}
-          hint="Payments minus refunds"
-          to="/reports"
-          mono
-        />
-      </section>
+      <section className="grid-2 fade-up fade-up-1" style={{ alignItems: 'start' }}>
+        <DashboardCard title="Invoices" action={<Link to={paths.invoices.list}>Open invoices</Link>}>
+          <MoneyBar entries={receivables} ariaLabel="Receivables summary" />
+          <div className="grid-2" style={{ marginTop: 16 }}>
+            <Metric label="Outstanding" value={outstanding === null ? null : formatGhs(outstanding)} mono />
+            <Metric
+              label="Revenue today"
+              value={overview.status === 'ok' ? formatGhs(overview.data.revenue_today_pesewas) : null}
+              mono
+            />
+          </div>
+        </DashboardCard>
 
-      <section className="card fade-up fade-up-2">
-        <div className="row-between" style={{ marginBottom: 14 }}>
-          <h3 className="card-title" style={{ margin: 0 }}>Inventory at a glance</h3>
-          <Link to={paths.catalog.list} style={{ fontSize: 13 }}>Open catalog →</Link>
-        </div>
-        <div className="grid-2">
-          <KV label="Party-supply units in pool" value={supplyCount === null ? null : supplyCount.toLocaleString('en-GB')} />
-          <KV label="Hearses on the books" value={fleetCount === null ? null : String(fleetCount)} />
-          <KV label="Replacement value (est.)" value={portfolioValue === null ? null : formatGhs(portfolioValue)} mono />
-          <KV label="Customers on file" value={customerCount === null ? null : customerCount.toLocaleString('en-GB')} />
-        </div>
-      </section>
+        <DashboardCard title="Bookings" action={<Link to={paths.bookings.list}>Open bookings</Link>}>
+          <div className="grid-2">
+            <Metric
+              label="Today"
+              value={activeBookings.status === 'ok' ? bookingCounts.today.toLocaleString('en-GB') : null}
+            />
+            <Metric
+              label="This week"
+              value={activeBookings.status === 'ok' ? bookingCounts.week.toLocaleString('en-GB') : null}
+            />
+            <Metric label="Active" value={activeCount === null ? null : activeCount.toLocaleString('en-GB')} />
+          </div>
+        </DashboardCard>
 
-      <section className="card fade-up fade-up-3">
-        <span className="eyebrow">Reports</span>
-        <h3 style={{ marginTop: 6, marginBottom: 6 }}>Revenue, utilization, trips, and damage</h3>
-        <p className="muted" style={{ maxWidth: 600, lineHeight: 1.55, margin: 0 }}>
-          The reports workspace rolls up payments, balances, item utilization, hearse trips,
-          and damage charges with CSV export for owner review.
-        </p>
-        <div style={{ marginTop: 14 }}>
-          <Link to="/reports"><button type="button" className="btn btn-md">Open reports</button></Link>
-        </div>
+        <DashboardCard title="Recent activity" action={<Link to={paths.bookings.list}>View all</Link>}>
+          {activeBookings.status === 'loading' && <Spinner />}
+          {activeBookings.status === 'ok' && recent.length > 0 ? (
+            <table className="dtable">
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Status</th>
+                  <th>Starts</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recent.map((row) => (
+                  <tr key={row.id} onClick={() => navigate(paths.bookings.detail(row.id))}>
+                    <td>{row.customer_name}</td>
+                    <td>{BOOKING_STATUS_LABELS[row.status]}</td>
+                    <td className="mono" style={{ fontSize: 12 }}>{formatDate(row.starts_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : activeBookings.status === 'ok' ? (
+            <EmptyState title="No active bookings" body="Reserved and checked-out bookings will appear here." />
+          ) : null}
+        </DashboardCard>
       </section>
     </div>
   );
 }
 
-function Stat({
-  label,
-  value,
-  hint,
-  to,
-  mono,
+function DashboardCard({
+  title,
+  action,
+  children,
 }: {
-  label: string;
-  value: string | null;
-  hint?: string;
-  to?: string;
-  mono?: boolean;
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
 }): JSX.Element {
-  const inner = (
-    <div className="card" style={{ height: '100%' }}>
-      <div className="page-eyebrow" style={{ marginBottom: 8 }}>{label}</div>
-      <div
-        style={{
-          fontFamily: mono ? 'var(--font-mono)' : 'var(--font-display)',
-          fontSize: mono ? 26 : 32,
-          lineHeight: 1.1,
-          fontWeight: 600,
-          letterSpacing: '-0.01em',
-          color: 'var(--ink)',
-        }}
-      >
-        {value === null ? <Skeleton width={120} height={28} /> : value}
+  return (
+    <section className="card">
+      <div className="row-between" style={{ marginBottom: 14, gap: 12 }}>
+        <h3 className="card-title" style={{ margin: 0 }}>{title}</h3>
+        {action}
       </div>
-      {hint && <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>{hint}</div>}
-    </div>
+      {children}
+    </section>
   );
-  return to ? (
-    <Link to={to} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-      {inner}
-    </Link>
-  ) : inner;
 }
 
-function KV({ label, value, mono }: { label: string; value: string | null; mono?: boolean }): JSX.Element {
+function Metric({ label, value, mono }: { label: string; value: string | null; mono?: boolean }): JSX.Element {
   return (
     <div className="kv-stack">
       <span className="k">{label}</span>
-      <span className="v" style={{ fontFamily: mono === false ? 'var(--font-body)' : undefined }}>
-        {value === null ? <Skeleton width={80} height={12} /> : value}
+      <span className="v" style={{ fontFamily: mono ? 'var(--font-mono)' : undefined }}>
+        {value === null ? <Skeleton width={80} height={14} /> : value}
       </span>
     </div>
   );
+}
+
+function isOverdue(row: InvoiceSummaryRow, now: number): boolean {
+  if (row.status !== 'issued' || row.balance_due_pesewas <= 0 || !row.due_at) return false;
+  return new Date(row.due_at).getTime() < now;
+}
+
+function overlaps(row: BookingRow, start: Date, end: Date): boolean {
+  return new Date(row.starts_at) < end && new Date(row.ends_at) >= start;
+}
+
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfToday(): Date {
+  const d = startOfToday();
+  d.setDate(d.getDate() + 1);
+  return d;
+}
+
+function endOfThisWeek(): Date {
+  const d = startOfToday();
+  d.setDate(d.getDate() + 7);
+  return d;
 }

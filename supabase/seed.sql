@@ -1,1 +1,0 @@
--- Local seed (run via `supabase db reset`). Phase 1+ adds catalog/customer fixtures.

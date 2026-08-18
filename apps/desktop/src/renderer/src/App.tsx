@@ -1,43 +1,42 @@
 import { Suspense, useEffect, useState } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
-import type { AuthSession } from '@shared/schemas';
 import { Shell, PageLoader } from './components/Shell';
 import { ToastProvider } from './components/Toast';
 import { routes } from './router/routes';
 import { NotFound } from './routes/NotFound';
-import Auth from './routes/Auth';
+import Settings from './routes/Settings';
 import { api } from './lib/api';
 
 export function App(): JSX.Element {
   return (
     <HashRouter>
       <ToastProvider>
-        <AuthGate />
+        <CompanyGate />
       </ToastProvider>
     </HashRouter>
   );
 }
 
-function AuthGate(): JSX.Element {
-  const [session, setSession] = useState<AuthSession | null | undefined>(undefined);
+function CompanyGate(): JSX.Element {
+  const [hasProfile, setHasProfile] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
     let alive = true;
     const load = (): void => {
-      void api.auth.getSession().then((next) => {
-        if (alive) setSession(next);
+      void api.company.hasProfile().then((next) => {
+        if (alive) setHasProfile(next);
       });
     };
     load();
-    window.addEventListener('donkor:auth-changed', load);
+    window.addEventListener('donkor:company-changed', load);
     return () => {
       alive = false;
-      window.removeEventListener('donkor:auth-changed', load);
+      window.removeEventListener('donkor:company-changed', load);
     };
   }, []);
 
-  if (session === undefined) return <div className="auth-screen"><PageLoader /></div>;
-  if (!session) return <Auth onAuthenticated={setSession} />;
+  if (hasProfile === undefined) return <div className="auth-screen"><PageLoader /></div>;
+  if (!hasProfile) return <Settings onCompanySaved={() => setHasProfile(true)} />;
 
   return (
     <Shell>
