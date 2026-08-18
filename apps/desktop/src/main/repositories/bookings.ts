@@ -13,7 +13,7 @@ import {
   type ConflictReport,
 } from '@shared/schemas';
 
-const BOOKING_COLS = `id, tenant_id, customer_id, renter_name, status, starts_at, ends_at,
+const BOOKING_COLS = `id, tenant_id, customer_id, renter_name, renter_phone, status, starts_at, ends_at,
   pickup_location, dropoff_location, driver_name, notes,
   created_at, updated_at, deleted_at`;
 
@@ -228,7 +228,7 @@ export function createBooking(
 
   const insertBooking = db.prepare(
     `INSERT INTO bookings (${BOOKING_COLS})
-     VALUES (@id, @tenant_id, @customer_id, @renter_name, @status, @starts_at, @ends_at,
+     VALUES (@id, @tenant_id, @customer_id, @renter_name, @renter_phone, @status, @starts_at, @ends_at,
              @pickup_location, @dropoff_location, @driver_name, @notes,
              @created_at, @updated_at, NULL)`,
   );
@@ -257,6 +257,7 @@ export function createBooking(
       tenant_id: tenantId,
       customer_id: input.customer_id,
       renter_name: input.renter_name ?? null,
+      renter_phone: input.renter_phone ?? null,
       status: input.status ?? 'quote',
       starts_at: input.starts_at,
       ends_at: input.ends_at,
@@ -322,7 +323,7 @@ export function updateBooking(
   const merged = { ...existing, ...patch, updated_at: nowIso() };
   db.prepare(
     `UPDATE bookings SET
-       customer_id = @customer_id, renter_name = @renter_name, status = @status,
+       customer_id = @customer_id, renter_name = @renter_name, renter_phone = @renter_phone, status = @status,
        starts_at = @starts_at, ends_at = @ends_at,
        pickup_location = @pickup_location, dropoff_location = @dropoff_location,
        driver_name = @driver_name, notes = @notes, updated_at = @updated_at
@@ -332,6 +333,7 @@ export function updateBooking(
     tenant_id: tenantId,
     customer_id: merged.customer_id,
     renter_name: merged.renter_name ?? null,
+    renter_phone: merged.renter_phone ?? null,
     status: merged.status,
     starts_at: merged.starts_at,
     ends_at: merged.ends_at,

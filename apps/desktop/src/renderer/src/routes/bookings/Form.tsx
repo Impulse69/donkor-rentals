@@ -45,6 +45,7 @@ export default function BookingForm(): JSX.Element {
   const [customerMode, setCustomerMode] = useState<'saved' | 'new' | 'walkin'>('saved');
   const [customerId, setCustomerId] = useState('');
   const [renterName, setRenterName] = useState('Walk-in rental');
+  const [renterPhone, setRenterPhone] = useState('');
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
   const [newCustomerEmail, setNewCustomerEmail] = useState('');
@@ -69,6 +70,7 @@ export default function BookingForm(): JSX.Element {
     setCustomerMode(e.customer_id ? 'saved' : 'walkin');
     setCustomerId(e.customer_id ?? '');
     setRenterName(e.renter_name ?? e.customer_name);
+    setRenterPhone(e.renter_phone ?? '');
     setInitialStatus(e.status);
     setStartDate(localDateInput(e.starts_at));
     setStartTime(localTimeInput(e.starts_at));
@@ -159,6 +161,8 @@ export default function BookingForm(): JSX.Element {
     try {
       let submitCustomerId: string | null = customerMode === 'saved' ? customerId : null;
       let submitRenterName: string | null = customerMode === 'walkin' ? renterName.trim() : null;
+      const submitRenterPhone: string | null =
+        customerMode === 'walkin' ? renterPhone.trim() || null : null;
       if (!editing && customerMode === 'new') {
         const createdCustomer = await api.customers.create({
           name: newCustomerName.trim(),
@@ -176,6 +180,7 @@ export default function BookingForm(): JSX.Element {
       const base = {
         customer_id: submitCustomerId,
         renter_name: submitRenterName,
+        renter_phone: submitRenterPhone,
         starts_at: startsIso,
         ends_at: endsIso,
         pickup_location: hasHearseLine ? pickup || null : null,
@@ -273,7 +278,16 @@ export default function BookingForm(): JSX.Element {
               </>
             )}
             {customerMode === 'walkin' && (
-              <Input containerClass="full" label="Renter label" value={renterName} onChange={(e) => setRenterName(e.target.value)} required />
+              <>
+                <Input label="Renter label" value={renterName} onChange={(e) => setRenterName(e.target.value)} required />
+                <Input
+                  label="Phone (optional)"
+                  type="tel"
+                  value={renterPhone}
+                  onChange={(e) => setRenterPhone(e.target.value)}
+                  hint="So you can reach them about pickup or return"
+                />
+              </>
             )}
             <Input label="Pickup date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             <Input label="Pickup time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />

@@ -172,15 +172,27 @@ export default function BookingDetail(): JSX.Element {
           <strong>{billTo}</strong>
           {b.customer_id ? (
             <Link to={paths.customers.detail(b.customer_id)}>Open customer file</Link>
+          ) : b.renter_phone ? (
+            // The one way to reach a walk-in: they have no customer file, so the
+            // number lives on the booking itself.
+            <span className="muted" style={{ fontSize: 13 }}>{b.renter_phone}</span>
           ) : (
-            <span className="muted" style={{ fontSize: 13 }}>Walk-in rental</span>
+            // billTo already reads "Walk-in rental" when there is no customer on
+            // file, so repeating it underneath said the same thing twice.
+            <span className="muted" style={{ fontSize: 13 }}>No customer file — no phone taken</span>
           )}
         </div>
-        <div className="invoice-meta-dates">
-          <KV label="Pickup" value={b.pickup_location || '--'} />
-          <KV label="Drop-off" value={b.dropoff_location || '--'} />
-          <KV label="Driver" value={b.driver_name || '--'} />
-        </div>
+        {/* Pickup, drop-off and driver are optional and mostly used for the
+            hearse fleet. On a party-supplies booking they are always empty, and
+            three rows of dashes read like missing data rather than data that
+            does not apply — so only show what has been filled in. */}
+        {(b.pickup_location || b.dropoff_location || b.driver_name) && (
+          <div className="invoice-meta-dates">
+            {b.pickup_location && <KV label="Pickup" value={b.pickup_location} />}
+            {b.dropoff_location && <KV label="Drop-off" value={b.dropoff_location} />}
+            {b.driver_name && <KV label="Driver" value={b.driver_name} />}
+          </div>
+        )}
       </section>
 
       <div className="invoice-sheet fade-up fade-up-2">

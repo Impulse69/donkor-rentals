@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { checkConflicts, createBooking } from './bookings';
@@ -23,7 +23,10 @@ let db: Database.Database;
 function makeDb(): Database.Database {
   const d = new Database(':memory:');
   d.pragma('foreign_keys = ON');
-  for (const f of ['0001_baseline.sql', '0002_accounting.sql']) {
+  // Apply every shipped migration in order, exactly as the real runner does.
+  // A hardcoded list here silently pins tests to an old schema the moment a
+  // migration lands.
+  for (const f of readdirSync(MIGRATIONS).filter((n) => n.endsWith('.sql')).sort()) {
     d.exec(readFileSync(join(MIGRATIONS, f), 'utf8'));
   }
   const now = new Date().toISOString();
@@ -54,12 +57,14 @@ type BookOpts = {
   quantity: number;
   unitId?: string | null;
   status?: 'quote' | 'reserved' | 'out' | 'returned' | 'cancelled';
+  phone?: string;
 };
 
 function book(opts: BookOpts): string {
   const created = createBooking(db, TENANT, {
     customer_id: null,
     renter_name: 'Walk-in',
+    renter_phone: opts.phone ?? null,
     starts_at: opts.starts,
     ends_at: opts.ends,
     pickup_location: null,
@@ -222,6 +227,20 @@ describe('over-allocation is refused at write time', () => {
     expect(() =>
       book({ starts: '2026-03-02T00:00:00.000Z', ends: '2026-03-03T00:00:00.000Z', itemId: CHAIRS, quantity: 40 }),
     ).not.toThrow();
+  });
+});
+
+describe('walk-in reachability', () => {
+  it('keeps the phone a walk-in gave, and allows none at all', () => {
+    const withPhone = book({ starts: '2026-04-01T00:00:00.000Z', ends: '2026-04-02T00:00:00.000Z', itemId: CHAIRS, quantity: 1, phone: '0244 123 456' });
+    const without = book({ starts: '2026-04-03T00:00:00.000Z', ends: '2026-04-04T00:00:00.000Z', itemId: CHAIRS, quantity: 1 });
+
+    const read = (id: string): string | null =>
+      (db.prepare('SELECT renter_phone FROM bookings WHERE id = ?').get(id) as { renter_phone: string | null }).renter_phone;
+
+    expect(read(withPhone)).toBe('0244 123 456');
+    // Optional on purpose: a walk-in who refuses a number must not block the booking.
+    expect(read(without)).toBeNull();
   });
 });
 
