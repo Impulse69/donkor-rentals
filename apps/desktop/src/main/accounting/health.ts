@@ -10,7 +10,12 @@ export function everyEntryBalances(db: Database, tenantId: string): Array<{ entr
        JOIN journal_lines l ON l.entry_id = e.id
        WHERE e.tenant_id = @tenant_id
        GROUP BY e.id
-       HAVING debit_pesewas <> credit_pesewas`,
+       -- Aggregate explicitly rather than by alias. The aliases collide with the
+       -- real journal_lines column names, and SQLite resolves HAVING against the
+       -- source columns first, so the alias form compared one arbitrary row's
+       -- raw values instead of the sums and flagged almost every entry as
+       -- unbalanced.
+       HAVING SUM(l.debit_pesewas) <> SUM(l.credit_pesewas)`,
     )
     .all({ tenant_id: tenantId }) as Array<{ entry_id: string; debit_pesewas: number; credit_pesewas: number }>;
 }

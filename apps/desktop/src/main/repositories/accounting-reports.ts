@@ -79,7 +79,11 @@ export function trialBalance(db: Database, tenantId: string, asOf: string, start
        AND e.status = 'posted' AND ${dateRange(start)}
      WHERE a.tenant_id = @tenant_id AND a.deleted_at IS NULL
      GROUP BY a.id
-     HAVING debit_pesewas <> 0 OR credit_pesewas <> 0
+     -- Aggregate explicitly: these aliases collide with the real journal_lines
+     -- column names, and SQLite resolves HAVING against the source columns
+     -- first, so the alias form compared one arbitrary row instead of the sums.
+     HAVING SUM(CASE WHEN e.id IS NOT NULL THEN l.debit_pesewas ELSE 0 END) <> 0
+         OR SUM(CASE WHEN e.id IS NOT NULL THEN l.credit_pesewas ELSE 0 END) <> 0
      ORDER BY a.sort_order ASC, a.code ASC`,
   ).all({ tenant_id: tenantId, start: start ?? null, end: asOf }) as Array<Omit<TrialBalanceRow, 'balance_side' | 'balance_pesewas'>>;
   return rows.map((row) => {

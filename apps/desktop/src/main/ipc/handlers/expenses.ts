@@ -37,7 +37,7 @@ function listExpenses(db: Database, tenantId: string, filter: z.infer<typeof Exp
   if (filter.search) { sql += ' AND (number LIKE @q OR memo LIKE @q OR reference LIKE @q)'; p.q = `%${filter.search}%`; }
   return db.prepare(`${sql} ORDER BY txn_date DESC, number DESC`).all(p) as Expense[];
 }
-function expenseDraft(db: Database, tenantId: string, expense: Expense, lines: ExpenseLine[]): JournalDraft {
+export function expenseDraft(db: Database, tenantId: string, expense: Expense, lines: ExpenseLine[]): JournalDraft {
   const inputVat = db.prepare('SELECT vat_registered FROM accounting_settings WHERE tenant_id=@tenant_id').get({ tenant_id: tenantId }) as { vat_registered: number } | undefined;
   const creditAccount = expense.kind === 'bill' ? resolveAccount(db, tenantId, 'ap') : expense.payment_account_id;
   if (!creditAccount) throw new Error('Expense payment account is required');
@@ -50,12 +50,29 @@ function expenseDraft(db: Database, tenantId: string, expense: Expense, lines: E
     ],
   };
 }
+/**
+ * Input VAT is only reclaimable by a VAT-registered trader. When the company is
+ * not registered, expenseDraft omits the input-VAT debit — so carrying a tax
+ * amount here would credit `total` against debits of only `subtotal`, and
+ * postOnce would reject the entry as unbalanced. The common case for a small
+ * Ghanaian operator is not registered, which made recording any taxed expense
+ * fail outright. Tax is folded into the line amounts instead: not registered
+ * means line amounts are tax-inclusive.
+ */
+function reclaimableTax(db: Database, tenantId: string, taxPesewas: number): number {
+  const row = db
+    .prepare('SELECT vat_registered FROM accounting_settings WHERE tenant_id = @tenant_id')
+    .get({ tenant_id: tenantId }) as { vat_registered: number } | undefined;
+  return row?.vat_registered ? taxPesewas : 0;
+}
+
 function createExpense(db: Database, tenantId: string, input: z.infer<typeof ExpenseCreateInput>): ExpenseWithLines {
   const id = uuidv4(); const now = nowIso(); const number = input.number || nextNo(db, tenantId);
-  const subtotal = input.lines.reduce((s, l) => s + l.amount_pesewas, 0); const total = subtotal + input.tax_pesewas;
+  const tax = reclaimableTax(db, tenantId, input.tax_pesewas);
+  const subtotal = input.lines.reduce((s, l) => s + l.amount_pesewas, 0); const total = subtotal + tax;
   const tx = db.transaction(() => {
     db.prepare(`INSERT INTO expenses (${expenseCols}) VALUES (@id,@tenant_id,@vendor_id,@kind,@number,@status,@txn_date,@due_date,@payment_account_id,@payment_method,@reference,@memo,@subtotal_pesewas,@tax_pesewas,@total_pesewas,@item_unit_id,@created_at,@updated_at,NULL)`)
-      .run({ id, tenant_id: tenantId, vendor_id: input.vendor_id ?? null, kind: input.kind, number, status: input.status ?? 'draft', txn_date: input.txn_date, due_date: input.due_date ?? null, payment_account_id: input.payment_account_id ?? null, payment_method: input.payment_method ?? null, reference: input.reference ?? null, memo: input.memo ?? null, subtotal_pesewas: subtotal, tax_pesewas: input.tax_pesewas, total_pesewas: total, item_unit_id: input.item_unit_id ?? null, created_at: now, updated_at: now });
+      .run({ id, tenant_id: tenantId, vendor_id: input.vendor_id ?? null, kind: input.kind, number, status: input.status ?? 'draft', txn_date: input.txn_date, due_date: input.due_date ?? null, payment_account_id: input.payment_account_id ?? null, payment_method: input.payment_method ?? null, reference: input.reference ?? null, memo: input.memo ?? null, subtotal_pesewas: subtotal, tax_pesewas: tax, total_pesewas: total, item_unit_id: input.item_unit_id ?? null, created_at: now, updated_at: now });
     input.lines.forEach((l, i) => db.prepare(`INSERT INTO expense_lines (${lineCols}) VALUES (@id,@tenant_id,@expense_id,@account_id,@description,@quantity,@unit_amount_pesewas,@amount_pesewas,@item_unit_id,@sort_order,@created_at,@updated_at,NULL)`).run({ ...l, id: uuidv4(), tenant_id: tenantId, expense_id: id, item_unit_id: l.item_unit_id ?? null, sort_order: l.sort_order ?? i, created_at: now, updated_at: now }));
     const created = getExpense(db, tenantId, id); if (!created) throw new Error('createExpense: readback failed');
     if (created.status !== 'draft') postOnce(db, tenantId, expenseDraft(db, tenantId, created, created.lines));
