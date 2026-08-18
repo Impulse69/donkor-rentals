@@ -5,6 +5,7 @@ import { api } from '../../lib/api';
 import { paths } from '../../router/paths';
 import { formatDate, formatGhs } from '../../lib/format';
 import { printHtml } from '../../lib/print';
+import { ActionBar } from '../../components/ActionBar';
 import { Button } from '../../components/Button';
 import { StatusPill } from '../../components/StatusPill';
 import { Spinner } from '../../components/Spinner';
@@ -246,7 +247,7 @@ export default function BookingDetail(): JSX.Element {
         </section>
       </div>
 
-      <div className="invoice-actionbar" role="toolbar" aria-label="Booking actions">
+      <ActionBar label="Booking actions">
         <div className="invoice-actionbar-left">
           <Link to={paths.bookings.list}>
             <Button variant="ghost">Back</Button>
@@ -289,7 +290,7 @@ export default function BookingDetail(): JSX.Element {
           </Button>
           <Link to={paths.bookings.edit(b.id)}><Button>Edit</Button></Link>
         </div>
-      </div>
+      </ActionBar>
 
       <ConfirmModal
         open={confirmRemove}

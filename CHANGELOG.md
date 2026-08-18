@@ -13,6 +13,19 @@ All notable changes to Donkor & Sons Rental Management Software.
   products list — a customer name or booking landed you on Products and
   Services with no matches. Each list screen has its own search that works.
 
+### Fixed: row menus were cut off
+
+The **View / Edit / Create invoice** menu on a list row was sliced off at the
+bottom edge of the table, so options like "Record return" could not be reached.
+Menus now sit above everything and stay on screen.
+
+### Fixed: the button bar at the bottom of a page
+
+On booking and invoice pages the bar of actions (Mark returned, Print contract,
+Edit and so on) sat in the wrong place, left a gap beneath itself, and let the
+page show through it when scrolled. It is now pinned flush across the bottom and
+stays put while you scroll.
+
 ### Booking page tidy-up
 
 - Pickup, Drop-off and Driver only appear when they are filled in. They are

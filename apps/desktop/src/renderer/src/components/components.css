@@ -94,7 +94,9 @@
 
 /* === QBO invoice detail ===================================== */
 .invoice-page {
-  padding-bottom: 112px;
+  /* Clearance for the fixed action bar so the last row is never sitting under
+     it. Generous on purpose: the bar wraps to two rows on a narrow window. */
+  padding-bottom: 132px;
 }
 .invoice-hero {
   display: grid;
@@ -245,20 +247,31 @@
 .invoice-support h3 {
   margin: var(--s-2) 0 var(--s-3);
 }
+/* Pinned to the bottom of the main area.
+   This was sticky with bottom: 0 and a negative horizontal margin, which broke
+   in three ways once the page scrolled:
+   - sticky resolves against the scrollport, but .invoice-page carries a large
+     padding-bottom, so the bar unstuck early and left a gap beneath itself;
+   - the margin pulled back --s-5 (20px) while .shell-main pads --s-7 (32px), so
+     the bar stopped 12px short of each edge and read as a floating panel;
+   - a translucent background let the content underneath show through it.
+   Fixed positioning against the shell removes the geometry guesswork: the
+   sidebar is a known width, so the bar can span exactly the main column. */
 .invoice-actionbar {
-  position: sticky;
+  position: fixed;
+  left: var(--shell-sidebar-w);
+  right: 0;
   bottom: 0;
-  z-index: 20;
+  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
-  margin: var(--s-7) calc(var(--s-5) * -1) 0;
-  padding: var(--s-3) var(--s-5);
-  background: color-mix(in srgb, var(--panel) 96%, transparent);
+  margin: 0;
+  padding: var(--s-3) var(--s-7);
+  background: var(--panel);
   border-top: 1px solid var(--rule);
-  box-shadow: 0 -8px 18px rgba(30, 31, 33, 0.08);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 -8px 18px rgba(30, 31, 33, 0.10);
 }
 .invoice-actionbar-left,
 .invoice-actionbar-right {
@@ -284,6 +297,7 @@
   .invoice-actionbar {
     align-items: stretch;
     flex-direction: column;
+    padding: var(--s-3) var(--s-5);
   }
   .invoice-actionbar-left,
   .invoice-actionbar-right {
