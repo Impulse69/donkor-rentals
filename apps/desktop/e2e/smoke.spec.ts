@@ -128,6 +128,22 @@ test('navigates every converted screen without an error boundary', async () => {
   }
 });
 
+test('a fresh install explains an empty catalogue instead of a dead item picker', async () => {
+  // Regression: seeding is gated on !app.isPackaged, so a real install starts
+  // with no products. The picker still rendered its "Party supplies" and
+  // "Hearses" optgroup labels, which draw as grey rows that look selectable —
+  // clicking them did nothing and the booking could not be completed. Reported
+  // from the field as "the dropdown opens but selecting doesn't work".
+  await win.evaluate(() => { window.location.hash = '#/bookings/new'; });
+  await expect(win.locator('h1.page-title')).toBeVisible();
+
+  await expect(win.getByText(/Add a product or service before booking/i)).toBeVisible();
+  await expect(win.locator('a[href*="catalog/new"]')).toBeVisible();
+
+  // The dead picker must not be there at all when there is nothing to pick.
+  await expect(win.locator('select', { hasText: 'Add item to booking' })).toHaveCount(0);
+});
+
 test('global search still deep-links into products', async () => {
   await win.keyboard.press('Control+KeyK');
   const search = win.locator('.topbar-search input, .topbar input[type="search"], .topbar input').first();
