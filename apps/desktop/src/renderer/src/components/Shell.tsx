@@ -154,6 +154,7 @@ function NewMenu(): JSX.Element {
     <div className="sidebar-new">
       <Dropdown
         align="start"
+        portal
         trigger={<button type="button" className="new-button">+ New</button>}
       >
         <div className="new-menu" aria-label="Create new">
