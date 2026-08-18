@@ -9,6 +9,17 @@ import {
   type Payment,
   type PaymentCreateInput,
 } from '@shared/schemas';
+import {
+  buildDepositAppliedEntry,
+  buildDepositReceivedEntry,
+  buildInvoiceIssuedEntry,
+  buildPaymentReceivedEntry,
+  buildRefundedEntry,
+  postOnce,
+  reverseEntry,
+} from '../accounting/posting';
+import { resolveAccount, resolveCashAccount } from '../accounting/chart';
+import { toEntryDate } from '../accounting/dates';
 
 const INVOICE_COLS = `id, tenant_id, booking_id, number, status, issued_at, due_at,
   subtotal_pesewas, tax_pesewas, discount_pesewas, total_pesewas,
@@ -63,6 +74,88 @@ function nextInvoiceNumber(db: Database, tenantId: string): string {
               WHERE tenant_id = @t RETURNING next_value - 1 AS used`)
     .get({ t: tenantId }) as { used: number };
   return `INV-${String(row.used).padStart(6, '0')}`;
+}
+
+function assertInvoiceTotals(invoice: InvoiceWithLines): void {
+  const lineTotal = invoice.lines.reduce((sum, line) => sum + line.line_total_pesewas, 0);
+  if (invoice.subtotal_pesewas !== lineTotal) {
+    throw new Error(`Invoice ${invoice.number} subtotal does not equal line totals`);
+  }
+  const expected = invoice.subtotal_pesewas + invoice.nhil_pesewas + invoice.getfund_pesewas + invoice.vat_pesewas - invoice.discount_pesewas;
+  if (invoice.total_pesewas !== expected) {
+    throw new Error(`Invoice ${invoice.number} total does not equal stored subtotal/tax/discount values`);
+  }
+}
+
+function getInvoiceCustomerId(db: Database, invoice: Pick<InvoiceWithLines, 'booking_id'>): string | null {
+  const row = db
+    .prepare('SELECT customer_id FROM bookings WHERE id = @id')
+    .get({ id: invoice.booking_id }) as { customer_id: string | null } | undefined;
+  return row?.customer_id ?? null;
+}
+
+function postInvoiceIssued(db: Database, tenantId: string, invoice: InvoiceWithLines): void {
+  assertInvoiceTotals(invoice);
+  const incomeParty = resolveAccount(db, tenantId, 'income.party_supply');
+  const incomeHearse = resolveAccount(db, tenantId, 'income.hearse');
+  const incomeDefault = resolveAccount(db, tenantId, 'income.default');
+  const incomeRows = db
+    .prepare(
+      `SELECT il.line_total_pesewas, il.description, bl.item_id, bl.item_unit_id, i.kind AS item_kind
+       FROM invoice_lines il
+       LEFT JOIN booking_lines bl ON bl.id = il.booking_line_id AND bl.tenant_id = il.tenant_id
+       LEFT JOIN items i ON i.id = bl.item_id AND i.tenant_id = il.tenant_id
+       WHERE il.invoice_id = @invoice_id AND il.tenant_id = @tenant_id AND il.deleted_at IS NULL
+       ORDER BY il.sort_order ASC, il.created_at ASC`,
+    )
+    .all({ invoice_id: invoice.id, tenant_id: tenantId }) as Array<{
+      line_total_pesewas: number;
+      description: string;
+      item_id: string | null;
+      item_unit_id: string | null;
+      item_kind: 'party_supply' | 'hearse' | null;
+    }>;
+  postOnce(db, tenantId, buildInvoiceIssuedEntry({
+    entry_date: toEntryDate(invoice.issued_at ?? nowIso()),
+    invoice_id: invoice.id,
+    invoice_number: invoice.number,
+    customer_id: getInvoiceCustomerId(db, invoice),
+    ar_account_id: resolveAccount(db, tenantId, 'ar'),
+    discounts_given_account_id: resolveAccount(db, tenantId, 'discounts_given'),
+    nhil_payable_account_id: resolveAccount(db, tenantId, 'tax.nhil_payable'),
+    getfund_payable_account_id: resolveAccount(db, tenantId, 'tax.getfund_payable'),
+    vat_payable_account_id: resolveAccount(db, tenantId, 'tax.vat_payable'),
+    total_pesewas: invoice.total_pesewas,
+    subtotal_pesewas: invoice.subtotal_pesewas,
+    discount_pesewas: invoice.discount_pesewas,
+    nhil_pesewas: invoice.nhil_pesewas,
+    getfund_pesewas: invoice.getfund_pesewas,
+    vat_pesewas: invoice.vat_pesewas,
+    income_default_account_id: incomeDefault,
+    income_lines: incomeRows.map((row) => ({
+      account_id: row.item_kind === 'hearse' ? incomeHearse : row.item_kind === 'party_supply' ? incomeParty : incomeDefault,
+      amount_pesewas: row.line_total_pesewas,
+      memo: row.description,
+      item_id: row.item_id,
+      item_unit_id: row.item_unit_id,
+    })),
+  }));
+  const advances = db
+    .prepare(
+      `SELECT COALESCE(SUM(amount_pesewas), 0) AS n
+       FROM payments
+       WHERE invoice_id = @invoice_id AND tenant_id = @tenant_id AND kind = 'deposit' AND deleted_at IS NULL`,
+    )
+    .get({ invoice_id: invoice.id, tenant_id: tenantId }) as { n: number };
+  postOnce(db, tenantId, buildDepositAppliedEntry({
+    entry_date: toEntryDate(invoice.issued_at ?? nowIso()),
+    invoice_id: invoice.id,
+    customer_deposits_account_id: resolveAccount(db, tenantId, 'customer_deposits'),
+    ar_account_id: resolveAccount(db, tenantId, 'ar'),
+    advances_pesewas: advances.n,
+    invoice_total_pesewas: invoice.total_pesewas,
+    customer_id: getInvoiceCustomerId(db, invoice),
+  }));
 }
 
 function daysBetween(starts: string, ends: string): number {
@@ -330,6 +423,12 @@ export function updateInvoice(
 ): InvoiceWithLines {
   const existing = getInvoice(db, tenantId, id);
   if (!existing) throw new Error(`updateInvoice: invoice ${id} not found`);
+  if (
+    existing.status !== 'draft' &&
+    (patch.discount_pesewas !== undefined || patch.include_statutory_taxes !== undefined)
+  ) {
+    throw new Error('Issued invoices cannot be re-priced -- void and re-issue');
+  }
 
   // Status moves with side-effects.
   let issued_at = existing.issued_at;
@@ -350,39 +449,64 @@ export function updateInvoice(
     : { nhil: 0, getfund: 0, vat: 0, total_inclusive: existing.subtotal_pesewas };
   const total = Math.max(0, breakdown.total_inclusive - discount);
 
-  db.prepare(
-    `UPDATE invoices SET
-       status = @status, issued_at = @issued_at, due_at = @due_at,
-       discount_pesewas = @discount_pesewas, total_pesewas = @total_pesewas,
-       include_statutory_taxes = @include_statutory_taxes,
-       nhil_pesewas = @nhil_pesewas, getfund_pesewas = @getfund_pesewas, vat_pesewas = @vat_pesewas,
-       initial_payment_percent = @initial_payment_percent,
-       before_delivery_percent = @before_delivery_percent,
-       notes = @notes, updated_at = @updated_at
-     WHERE id = @id AND tenant_id = @tenant_id`,
-  ).run({
-    id,
-    tenant_id: tenantId,
-    status: patch.status ?? existing.status,
-    issued_at,
-    due_at: patch.due_at ?? existing.due_at,
-    discount_pesewas: discount,
-    total_pesewas: total,
-    include_statutory_taxes: includeStatutory ? 1 : 0,
-    nhil_pesewas: breakdown.nhil,
-    getfund_pesewas: breakdown.getfund,
-    vat_pesewas: breakdown.vat,
-    initial_payment_percent: initialPct,
-    before_delivery_percent: beforeDeliveryPct,
-    notes: patch.notes !== undefined ? patch.notes : existing.notes,
-    updated_at: nowIso(),
+  const tx = db.transaction(() => {
+    const updatedAt = nowIso();
+    db.prepare(
+      `UPDATE invoices SET
+         status = @status, issued_at = @issued_at, due_at = @due_at,
+         discount_pesewas = @discount_pesewas, total_pesewas = @total_pesewas,
+         include_statutory_taxes = @include_statutory_taxes,
+         nhil_pesewas = @nhil_pesewas, getfund_pesewas = @getfund_pesewas, vat_pesewas = @vat_pesewas,
+         initial_payment_percent = @initial_payment_percent,
+         before_delivery_percent = @before_delivery_percent,
+         notes = @notes, updated_at = @updated_at
+       WHERE id = @id AND tenant_id = @tenant_id`,
+    ).run({
+      id,
+      tenant_id: tenantId,
+      status: patch.status ?? existing.status,
+      issued_at,
+      due_at: patch.due_at ?? existing.due_at,
+      discount_pesewas: discount,
+      total_pesewas: total,
+      include_statutory_taxes: includeStatutory ? 1 : 0,
+      nhil_pesewas: breakdown.nhil,
+      getfund_pesewas: breakdown.getfund,
+      vat_pesewas: breakdown.vat,
+      initial_payment_percent: initialPct,
+      before_delivery_percent: beforeDeliveryPct,
+      notes: patch.notes !== undefined ? patch.notes : existing.notes,
+      updated_at: updatedAt,
+    });
+    const current = getInvoice(db, tenantId, id);
+    if (!current) throw new Error('updateInvoice: readback failed');
+    if (patch.status === 'issued' && existing.status === 'draft') {
+      postInvoiceIssued(db, tenantId, current);
+    }
+    if (patch.status === 'void' && existing.status !== 'void') {
+      const entries = db
+        .prepare(
+          `SELECT id FROM journal_entries
+           WHERE tenant_id = @tenant_id AND source_type = 'invoice' AND source_id = @invoice_id
+             AND reversed_by_id IS NULL
+           ORDER BY entry_no ASC`,
+        )
+        .all({ tenant_id: tenantId, invoice_id: id }) as Array<{ id: string }>;
+      for (const entry of entries) {
+        reverseEntry(db, tenantId, entry.id, toEntryDate(updatedAt), `Invoice ${current.number} voided`);
+      }
+    }
   });
+  tx();
   const after = getInvoice(db, tenantId, id);
   if (!after) throw new Error('updateInvoice: readback failed');
   return after;
 }
 
 export function softDeleteInvoice(db: Database, tenantId: string, id: string): void {
+  const existing = getInvoice(db, tenantId, id);
+  if (!existing) throw new Error(`softDeleteInvoice: invoice ${id} not found`);
+  if (existing.status !== 'draft') throw new Error('Only draft invoices can be deleted');
   db.prepare(
     `UPDATE invoices SET deleted_at = @t, updated_at = @t
      WHERE id = @id AND tenant_id = @tenant_id AND deleted_at IS NULL`,
@@ -396,11 +520,11 @@ function readBalance(
   db: Database,
   tenantId: string,
   invoiceId: string,
-): { total: number; paid: number; status: string } | null {
+): { total: number; paid: number; status: string; booking_id: string } | null {
   return (
     (db
       .prepare(
-        `SELECT i.total_pesewas AS total, i.status AS status,
+        `SELECT i.total_pesewas AS total, i.status AS status, i.booking_id AS booking_id,
                 COALESCE((
                   SELECT SUM(CASE WHEN p.kind = 'refund' THEN -p.amount_pesewas ELSE p.amount_pesewas END)
                   FROM payments p
@@ -410,7 +534,7 @@ function readBalance(
          WHERE i.id = @id AND i.tenant_id = @tenant_id AND i.deleted_at IS NULL`,
       )
       .get({ id: invoiceId, tenant_id: tenantId }) as
-      | { total: number; paid: number; status: string }
+      | { total: number; paid: number; status: string; booking_id: string }
       | undefined) ?? null
   );
 }
@@ -457,6 +581,51 @@ export function recordPayment(
       updated_at: now,
     });
 
+    const customer_id = getInvoiceCustomerId(db, { booking_id: snap.booking_id });
+    if (input.kind === 'deposit') {
+      postOnce(db, tenantId, buildDepositReceivedEntry({
+        entry_date: toEntryDate(input.paid_at),
+        payment_id: id,
+        invoice_is_draft: snap.status === 'draft',
+        cash_account_id: resolveCashAccount(db, tenantId, input.method),
+        customer_deposits_account_id: resolveAccount(db, tenantId, 'customer_deposits'),
+        ar_account_id: resolveAccount(db, tenantId, 'ar'),
+        amount_pesewas: input.amount_pesewas,
+        customer_id,
+      }));
+    } else if (input.kind === 'payment') {
+      postOnce(db, tenantId, buildPaymentReceivedEntry({
+        entry_date: toEntryDate(input.paid_at),
+        payment_id: id,
+        cash_account_id: resolveCashAccount(db, tenantId, input.method),
+        ar_account_id: resolveAccount(db, tenantId, 'ar'),
+        amount_pesewas: input.amount_pesewas,
+        customer_id,
+      }));
+    } else {
+      const matchesReturnRefund = Boolean(db
+        .prepare(
+          `SELECT r.id
+           FROM returns r
+           WHERE r.tenant_id = @tenant_id
+             AND r.booking_id = @booking_id
+             AND r.refund_pesewas = @amount
+             AND r.deleted_at IS NULL
+           LIMIT 1`,
+        )
+        .get({ tenant_id: tenantId, booking_id: snap.booking_id, amount: input.amount_pesewas }));
+      postOnce(db, tenantId, buildRefundedEntry({
+        entry_date: toEntryDate(input.paid_at),
+        payment_id: id,
+        cash_account_id: resolveCashAccount(db, tenantId, input.method),
+        customer_deposits_account_id: resolveAccount(db, tenantId, 'customer_deposits'),
+        ar_account_id: resolveAccount(db, tenantId, 'ar'),
+        amount_pesewas: input.amount_pesewas,
+        matches_return_refund: matchesReturnRefund,
+        customer_id,
+      }));
+    }
+
     // Atomic status reconciliation inside the same transaction.
     const after = readBalance(db, tenantId, input.invoice_id);
     if (!after) return;
@@ -493,6 +662,16 @@ export function voidPayment(
     if (!row) throw new Error('voidPayment: payment not found');
     invoiceId = row.invoice_id;
     const t = nowIso();
+    const entry = db
+      .prepare(
+        `SELECT id FROM journal_entries
+         WHERE tenant_id = @tenant_id AND source_type = 'payment' AND source_id = @payment_id
+           AND reversed_by_id IS NULL
+         ORDER BY entry_no ASC
+         LIMIT 1`,
+      )
+      .get({ tenant_id: tenantId, payment_id: paymentId }) as { id: string } | undefined;
+    if (entry) reverseEntry(db, tenantId, entry.id, toEntryDate(t), 'Payment voided');
     db.prepare(`UPDATE payments SET deleted_at = @t, updated_at = @t WHERE id = @id`).run({
       id: paymentId,
       t,
