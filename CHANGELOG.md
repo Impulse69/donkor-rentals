@@ -2,6 +2,35 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.4.0] - 2026-08-19
+
+### Buttons look like buttons
+
+Across the whole app, the quieter buttons had no border and no fill - they read
+as plain grey text until you happened to hover over one. That hid real actions:
+**Void**, **Remove**, **Clear**, **Cancel** and most of the buttons inside table
+rows. They now have a visible outline at rest, while staying quieter than the
+green primary button so it is still obvious what the main action is.
+
+### The invoice screen tells you what comes next
+
+The buttons on an invoice now follow the job: raise it, issue it, take the
+money, hand over a receipt. Exactly one button is green - whatever the next step
+is.
+
+- Once nothing is owed, **Record payment** is replaced by **Print receipt**.
+- **Print receipt** now appears as soon as any payment has been recorded,
+  instead of only after the invoice was marked paid.
+- **Print** (the invoice itself) stays available at every stage.
+
+Previously both of those keyed off the invoice being marked "Paid", which only
+happens when a payment settles an invoice that has already been issued. If you
+took the money before issuing the invoice - which is normal for a walk-in - the
+screen kept asking for another payment and refused to print the receipt for the
+money already in hand.
+
+---
+
 ## [1.3.12] - 2026-08-19
 
 ### Fixed: date filters could not be cleared

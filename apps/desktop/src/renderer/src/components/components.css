@@ -365,22 +365,31 @@
 }
 
 .btn-secondary {
-  /* explicit default — same as base .btn */
-}
-
-.btn-ghost {
-  border-color: transparent;
-  background: transparent;
-  color: var(--ink-mute);
-}
-.btn-secondary {
   background: var(--panel);
   border-color: var(--rule-strong);
   color: var(--ink);
 }
+
+/*
+ * A ghost button is quieter than a secondary one. It is not invisible.
+ *
+ * This used to be a transparent border on a transparent background with muted
+ * text, which renders as a line of grey label — nothing about it says "press
+ * me" until the pointer happens to cross it. Row actions built on it (Void,
+ * Remove, Clear, Cancel) were effectively hidden from anyone not already
+ * hunting for them, in every table in the app.
+ *
+ * Keeping the hierarchy: no fill, a light rule rather than the strong one
+ * secondary uses, and full-strength ink so the label reads as an action.
+ */
+.btn-ghost {
+  border-color: var(--rule);
+  background: transparent;
+  color: var(--ink);
+}
 .btn-ghost:hover:not(:disabled) {
   background: var(--paper-tint);
-  border-color: var(--rule);
+  border-color: var(--rule-strong);
   color: var(--ink);
 }
 

@@ -149,6 +149,32 @@ export default function InvoiceDetail(): JSX.Element {
     }
   }
 
+  // Where this invoice sits in the chain, read from the figures rather than the
+  // status flag alone. `settled` means nothing is owed; a draft can be settled
+  // (money taken before the invoice was issued) and an issued invoice can carry
+  // payments and still owe something.
+  const settled = inv.balance_due_pesewas <= 0;
+  const hasPayments = inv.payments.length > 0;
+  const isVoid = inv.status === 'void';
+  const canTakePayment = !isVoid && !settled;
+  const canPrintReceipt = !isVoid && hasPayments;
+
+  /** The single next step, and so the single green button. */
+  const chainStep: 'issue' | 'pay' | 'receipt' | null = isVoid
+    ? null
+    : inv.status === 'draft'
+      ? 'issue'
+      : !settled
+        ? 'pay'
+        : hasPayments
+          ? 'receipt'
+          : null;
+
+  async function printLatestReceipt(): Promise<void> {
+    const latest = inv.payments[inv.payments.length - 1];
+    if (latest) await generateReceipt(latest.id);
+  }
+
   // --- Print-format chooser preview math (no IPC; render-only) ----------
   const subtotalP = inv.subtotal_pesewas;
   const discountP = inv.discount_pesewas;
@@ -391,30 +417,50 @@ export default function InvoiceDetail(): JSX.Element {
           </Link>
         </div>
         <div className="invoice-actionbar-right">
-          {inv.status !== 'void' && inv.status !== 'paid' && (
+          {/*
+            Raise it, issue it, take the money, hand over a receipt. Exactly one
+            button is green: whatever comes next. Everything else stays
+            available but quiet.
+
+            The old version keyed both "Record payment" and "Print receipt" off
+            status === 'paid'. Status only reaches 'paid' when a payment settles
+            an ISSUED invoice, so a fully-settled draft still offered to take
+            another payment and still refused to print the receipt for the money
+            already taken. Reading the balance instead makes the buttons agree
+            with the figures directly above them.
+          */}
+          {canTakePayment && chainStep !== 'pay' && (
             <Button onClick={() => setShowPay((v) => !v)}>
               {showPay ? 'Cancel payment' : 'Record payment'}
             </Button>
           )}
-          {inv.status === 'paid' && inv.payments.length > 0 ? (
-            <Button loading={docBusy} onClick={() => {
-              const latestPayment = inv.payments[inv.payments.length - 1];
-              void generateReceipt(latestPayment.id);
-            }}>Print receipt</Button>
-          ) : (
-            <Button onClick={openPrintChooser}>Print</Button>
+          <Button onClick={openPrintChooser}>Print</Button>
+          {canPrintReceipt && chainStep !== 'receipt' && (
+            <Button loading={docBusy} onClick={() => { void printLatestReceipt(); }}>
+              Print receipt
+            </Button>
           )}
           {(inv.status === 'draft' || inv.status === 'issued') && (
             <Button variant="danger" loading={statusBusy} onClick={() => { void moveStatus('void'); }}>
               Void
             </Button>
           )}
-          {inv.status === 'draft' && (
+          {chainStep === 'pay' && (
+            <Button variant="primary" onClick={() => setShowPay((v) => !v)}>
+              {showPay ? 'Cancel payment' : 'Record payment'}
+            </Button>
+          )}
+          {chainStep === 'issue' && (
             <Button variant="primary" loading={statusBusy} onClick={() => { void moveStatus('issued'); }}>
               Save and issue
             </Button>
           )}
-          {inv.status !== 'draft' && (
+          {chainStep === 'receipt' && (
+            <Button variant="primary" loading={docBusy} onClick={() => { void printLatestReceipt(); }}>
+              Print receipt
+            </Button>
+          )}
+          {chainStep === null && (
             <Button variant="primary" disabled>
               Save
             </Button>
