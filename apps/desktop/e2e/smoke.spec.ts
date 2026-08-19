@@ -1,4 +1,6 @@
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 /**
@@ -12,10 +14,17 @@ import path from 'node:path';
 
 let app: ElectronApplication;
 let win: Page;
+let userData: string;
 
 test.beforeAll(async () => {
+  // A throwaway company file per run. This suite asserts on a first-run state —
+  // an empty catalogue, a fresh wizard — so anything another spec (or a previous
+  // run) left behind in the shared user-data directory makes it fail for reasons
+  // that have nothing to do with the code under test.
+  userData = mkdtempSync(path.join(tmpdir(), 'donkor-smoke-'));
   app = await electron.launch({
     args: [path.join(__dirname, '..', 'out', 'main', 'index.js')],
+    env: { ...process.env, DONKOR_USERDATA_OVERRIDE: userData },
   });
   win = await app.firstWindow();
 
@@ -57,6 +66,7 @@ test('first run reaches the shell without asking anyone to log in', async () => 
 
 test.afterAll(async () => {
   await app?.close();
+  rmSync(userData, { recursive: true, force: true });
 });
 
 test('boots into the QBO shell', async () => {

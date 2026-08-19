@@ -31,7 +31,7 @@ export default function VendorsList(): JSX.Element {
       <form key={search} className="dtable-toolbar fade-up fade-up-1" onSubmit={(e) => { e.preventDefault(); setQ(draft); }}>
         <input className="input" style={{ flex: '1 1 0', minWidth: 0 }} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Search by name, phone, email, or TIN..." aria-label="Search vendors" />
         <Button type="submit">Apply</Button>
-        {search && <Button variant="ghost" type="button" onClick={() => setQ('')}>Clear</Button>}
+        {search && <Button variant="ghost" type="button" onClick={() => { setDraft(''); setQ(''); }}>Clear</Button>}
       </form>
 
       <div className="fade-up fade-up-2">

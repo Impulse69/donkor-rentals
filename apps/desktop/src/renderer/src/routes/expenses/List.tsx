@@ -78,7 +78,12 @@ export default function ExpensesList(): JSX.Element {
         notes: payNotes.trim() || null,
       });
       toast.ok('Bill payment recorded');
+      // Reset the form, or the next bill opens pre-filled with this one's
+      // amount and reference — against a bill with a different balance.
       setPayingId(null);
+      setPayAmount('');
+      setPayReference('');
+      setPayNotes('');
       expenses.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not record bill payment');
