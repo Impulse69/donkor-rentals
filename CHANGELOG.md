@@ -2,6 +2,25 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.5.0-beta.3] - 2026-08-19 (BETA)
+
+### Fixed: pop-up messages were covering the buttons underneath them
+
+The little confirmation messages ("Invoice issued", "Payment recorded") appear
+in the bottom-right corner - which is exactly where the green button and its
+arrow sit. Each message parked itself on top of them and, because it was
+treated as something clickable despite having nothing to click, it swallowed
+the press.
+
+That is why the arrow seemed to disappear after a couple of actions: every
+action raises a message, and each message landed on top of the arrow for a few
+seconds.
+
+Messages now stack above the bottom bar instead of over it, and they no longer
+absorb clicks meant for anything behind them.
+
+---
+
 ## [1.5.0-beta.2] - 2026-08-19 (BETA)
 
 ### Fixed: adding the same item twice made two lines instead of two of it

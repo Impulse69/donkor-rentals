@@ -806,7 +806,11 @@ input[type='checkbox'], input[type='radio'] {
 /* === Toast ======================================================= */
 .toast-shelf {
   position: fixed;
-  bottom: var(--s-6);
+  /* Sit above the bottom action bar when a page has one. ActionBar measures
+     itself into --actionbar-h; without a bar the fallback is 0 and toasts sit
+     where they always did. Pinning both to the bottom-right meant every toast
+     landed on the primary button and its menu arrow. */
+  bottom: calc(var(--actionbar-h, 0px) + var(--s-6));
   right: var(--s-6);
   display: flex;
   flex-direction: column;
@@ -815,7 +819,10 @@ input[type='checkbox'], input[type='radio'] {
   pointer-events: none;
 }
 .toast {
-  pointer-events: auto;
+  /* Nothing on a toast is interactive — there is no dismiss handler — so it must
+     never intercept a click meant for whatever it is floating over. The shelf
+     already opts out; this used to opt back in for no benefit. */
+  pointer-events: none;
   background: var(--ink);
   color: #fff;
   padding: 10px 14px;
