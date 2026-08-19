@@ -171,7 +171,14 @@ export default function ExpensesList(): JSX.Element {
                     <td onClick={(event) => event.stopPropagation()}>
                       <SplitButton
                         size="sm"
-                        onClick={() => navigate(`/expenses/${e.id}`)}
+                        // The label promises "Record payment" on an unpaid bill,
+                        // but this navigated to the read-only detail page, which
+                        // has no payment action at all — the only way through
+                        // was the menu item. Do what the button says.
+                        onClick={() => {
+                          if (e.kind === 'bill' && e.status !== 'paid' && e.status !== 'void') setPayingId(e.id);
+                          else navigate(`/expenses/${e.id}`);
+                        }}
                         menu={(
                           <>
                             <Dropdown.Item onSelect={() => navigate(`/expenses/${e.id}`)}>View</Dropdown.Item>
@@ -180,7 +187,7 @@ export default function ExpensesList(): JSX.Element {
                           </>
                         )}
                       >
-                        {e.kind === 'bill' && e.status !== 'paid' ? 'Record payment' : 'View'}
+                        {e.kind === 'bill' && e.status !== 'paid' && e.status !== 'void' ? 'Record payment' : 'View'}
                       </SplitButton>
                     </td>
                   </tr>

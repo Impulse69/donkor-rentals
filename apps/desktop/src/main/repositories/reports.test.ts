@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { getTopCustomers, getTripLog } from './reports';
+import { getTopCustomers, getTripLog, getUtilization } from './reports';
 
 /**
  * The Reports screen has always shown a date range for Top Customers and the
@@ -114,5 +114,47 @@ describe('getTripLog', () => {
 
   it('returns nothing for a period with no trips', () => {
     expect(getTripLog(db, TENANT, 50, '2026-04-01', '2026-06-30')).toEqual([]);
+  });
+});
+
+describe('getUtilization', () => {
+  function onlyBooking(id: string, starts: string, ends: string, qty: number): void {
+    // Clear in foreign-key order; the shared fixture hangs invoices and
+    // payments off its bookings.
+    db.prepare('DELETE FROM payments').run();
+    db.prepare('DELETE FROM invoices').run();
+    db.prepare('DELETE FROM booking_lines').run();
+    db.prepare('DELETE FROM bookings').run();
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO bookings (id, tenant_id, customer_id, status, starts_at, ends_at, created_at, updated_at)
+       VALUES (@id, @t, 'cust-Ama', 'returned', @s, @e, @n, @n)`,
+    ).run({ id, t: TENANT, s: starts, e: ends, n: now });
+    db.prepare(
+      `INSERT INTO booking_lines (id, tenant_id, booking_id, item_id, quantity, daily_rate_pesewas, created_at, updated_at)
+       VALUES (@lid, @t, @id, @item, @q, 50000, @n, @n)`,
+    ).run({ lid: `line-${id}`, t: TENANT, id, item: HEARSE, q: qty, n: now });
+  }
+
+  it('counts a part-day rental the same way the invoice charges for it', () => {
+    // 08:00 on the 1st to 07:00 on the 3rd spans 1.96 days. The invoice bills
+    // ceil(1.96) = 2. Utilisation used CAST, which truncates to 1 — so every
+    // part-day hire was under-reported by a whole day and the two figures could
+    // never be reconciled.
+    onlyBooking('b1', '2026-01-01T08:00:00.000Z', '2026-01-03T07:00:00.000Z', 10);
+    const [row] = getUtilization(db, TENANT, '2026-01-01', '2026-01-31');
+    expect(row.booked_quantity_days).toBe(20); // 10 units x 2 days
+  });
+
+  it('still counts a whole-day rental as whole days', () => {
+    onlyBooking('b2', '2026-01-01T08:00:00.000Z', '2026-01-04T08:00:00.000Z', 1);
+    const [row] = getUtilization(db, TENANT, '2026-01-01', '2026-01-31');
+    expect(row.booked_quantity_days).toBe(3);
+  });
+
+  it('never counts less than a day for a booking that happened', () => {
+    onlyBooking('b3', '2026-01-01T08:00:00.000Z', '2026-01-01T10:00:00.000Z', 1);
+    const [row] = getUtilization(db, TENANT, '2026-01-01', '2026-01-31');
+    expect(row.booked_quantity_days).toBe(1);
   });
 });

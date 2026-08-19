@@ -28,14 +28,14 @@ export function registerReportsIpc(): void {
   ipcMain.handle(
     'reports:topCustomers',
     wrap('reports:topCustomers', z.object({ limit: z.number().int().positive().max(50).optional(), start: z.string().optional(), end: z.string().optional() }), ({ limit, start, end }) =>
-      reports.getTopCustomers(getDb(), tenant(), limit ?? 10),
+      reports.getTopCustomers(getDb(), tenant(), limit ?? 10, start, end),
     ),
   );
 
   ipcMain.handle(
     'reports:tripLog',
     wrap('reports:tripLog', z.object({ limit: z.number().int().positive().max(200).optional(), start: z.string().optional(), end: z.string().optional() }), ({ limit, start, end }) =>
-      reports.getTripLog(getDb(), tenant(), limit ?? 50),
+      reports.getTripLog(getDb(), tenant(), limit ?? 50, start, end),
     ),
   );
 

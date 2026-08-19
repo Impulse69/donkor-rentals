@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import { z } from 'zod';
 import { BillPaymentCreateInput, ExpenseCreateInput, ExpenseFilter, ExpenseUpdateInput, Uuid, type BillPayment, type Expense, type ExpenseLine } from '@shared/schemas';
+import { format as formatMoney } from '@shared/money';
 import { wrap } from '../envelope';
 import { ensureBootstrapTenant, getDb } from '../../db';
 import type { Database } from 'better-sqlite3';
@@ -66,7 +67,31 @@ function reclaimableTax(db: Database, tenantId: string, taxPesewas: number): num
   return row?.vat_registered ? taxPesewas : 0;
 }
 
-function createExpense(db: Database, tenantId: string, input: z.infer<typeof ExpenseCreateInput>): ExpenseWithLines {
+/** What is still owed on a bill: its total, less every payment recorded. */
+function billBalance(db: Database, tenantId: string, expenseId: string): number {
+  const bill = db
+    .prepare('SELECT total_pesewas FROM expenses WHERE id=@id AND tenant_id=@tenant_id AND deleted_at IS NULL')
+    .get({ id: expenseId, tenant_id: tenantId }) as { total_pesewas: number } | undefined;
+  if (!bill) throw new Error('Bill not found');
+  const paid = db
+    .prepare(
+      `SELECT COALESCE(SUM(amount_pesewas), 0) AS n FROM bill_payments
+       WHERE expense_id=@id AND tenant_id=@tenant_id AND deleted_at IS NULL`,
+    )
+    .get({ id: expenseId, tenant_id: tenantId }) as { n: number };
+  return bill.total_pesewas - paid.n;
+}
+
+function paymentsAgainst(db: Database, tenantId: string, expenseId: string): number {
+  return (db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM bill_payments
+       WHERE expense_id=@id AND tenant_id=@tenant_id AND deleted_at IS NULL`,
+    )
+    .get({ id: expenseId, tenant_id: tenantId }) as { n: number }).n;
+}
+
+export function createExpense(db: Database, tenantId: string, input: z.infer<typeof ExpenseCreateInput>): ExpenseWithLines {
   const id = uuidv4(); const now = nowIso(); const number = input.number || nextNo(db, tenantId);
   const tax = reclaimableTax(db, tenantId, input.tax_pesewas);
   const subtotal = input.lines.reduce((s, l) => s + l.amount_pesewas, 0); const total = subtotal + tax;
@@ -79,25 +104,64 @@ function createExpense(db: Database, tenantId: string, input: z.infer<typeof Exp
   }); tx();
   const row = getExpense(db, tenantId, id); if (!row) throw new Error('createExpense: readback failed'); return row;
 }
-function updateExpense(db: Database, tenantId: string, id: string, patch: z.infer<typeof ExpenseUpdateInput>): ExpenseWithLines {
+export function updateExpense(db: Database, tenantId: string, id: string, patch: z.infer<typeof ExpenseUpdateInput>): ExpenseWithLines {
   const existing = getExpense(db, tenantId, id); if (!existing) throw new Error(`updateExpense: expense ${id} not found`);
   const merged = { ...existing, ...patch, updated_at: nowIso() };
-  db.prepare('UPDATE expenses SET status=@status,due_date=@due_date,payment_account_id=@payment_account_id,payment_method=@payment_method,reference=@reference,memo=@memo,updated_at=@updated_at WHERE id=@id AND tenant_id=@tenant_id')
-    .run({ id, tenant_id: tenantId, status: merged.status, due_date: merged.due_date ?? null, payment_account_id: merged.payment_account_id ?? null, payment_method: merged.payment_method ?? null, reference: merged.reference ?? null, memo: merged.memo ?? null, updated_at: merged.updated_at });
-  if (existing.status === 'draft' && merged.status !== 'draft') postOnce(db, tenantId, expenseDraft(db, tenantId, merged, existing.lines));
+  // The write and its posting have to succeed or fail together. Without this
+  // wrapper better-sqlite3 autocommits the UPDATE, so a posting refused by a
+  // closed period left the expense approved with no journal entry behind it —
+  // money spent, books silent, and nothing anywhere to flag the gap.
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE expenses SET status=@status,due_date=@due_date,payment_account_id=@payment_account_id,payment_method=@payment_method,reference=@reference,memo=@memo,updated_at=@updated_at WHERE id=@id AND tenant_id=@tenant_id')
+      .run({ id, tenant_id: tenantId, status: merged.status, due_date: merged.due_date ?? null, payment_account_id: merged.payment_account_id ?? null, payment_method: merged.payment_method ?? null, reference: merged.reference ?? null, memo: merged.memo ?? null, updated_at: merged.updated_at });
+    if (existing.status === 'draft' && merged.status !== 'draft') postOnce(db, tenantId, expenseDraft(db, tenantId, merged, existing.lines));
+  }); tx();
   const row = getExpense(db, tenantId, id); if (!row) throw new Error('updateExpense: readback failed'); return row;
 }
-function voidExpense(db: Database, tenantId: string, id: string): ExpenseWithLines {
+export function voidExpense(db: Database, tenantId: string, id: string): ExpenseWithLines {
   const tx = db.transaction(() => {
+    // Voiding reverses the bill's own entry only. Any bill payment already made
+    // debited A/P separately, and that debit would stay — leaving the payable
+    // negative while the cash remained gone. Reverse the payments first, the
+    // same order the invoice side already insists on.
+    const paid = paymentsAgainst(db, tenantId, id);
+    if (paid > 0) {
+      throw new Error(
+        `Cannot void this bill — ${paid} payment${paid === 1 ? ' has' : 's have'} been recorded against it. ` +
+          'Void the payments first, then void the bill.',
+      );
+    }
     const e = db.prepare("SELECT id FROM journal_entries WHERE tenant_id=@tenant_id AND source_type='expense' AND source_id=@id AND reversed_by_id IS NULL LIMIT 1").get({ tenant_id: tenantId, id }) as { id: string } | undefined;
     if (e) reverseEntry(db, tenantId, e.id, new Date().toISOString().slice(0, 10), 'Expense voided');
     db.prepare("UPDATE expenses SET status='void', updated_at=@t WHERE id=@id AND tenant_id=@tenant_id").run({ id, tenant_id: tenantId, t: nowIso() });
   }); tx();
   const row = getExpense(db, tenantId, id); if (!row) throw new Error('voidExpense: readback failed'); return row;
 }
-function recordBillPayment(db: Database, tenantId: string, input: z.infer<typeof BillPaymentCreateInput>): BillPayment {
+export function recordBillPayment(db: Database, tenantId: string, input: z.infer<typeof BillPaymentCreateInput>): BillPayment {
   const id = uuidv4(); const now = nowIso();
   const tx = db.transaction(() => {
+    // A/P is a liability: it should never carry a debit balance. Every check
+    // here exists to stop one. The invoice side has had these guards from the
+    // start; the bill side went without.
+    const bill = db
+      .prepare('SELECT kind, status FROM expenses WHERE id=@id AND tenant_id=@tenant_id AND deleted_at IS NULL')
+      .get({ id: input.expense_id, tenant_id: tenantId }) as { kind: string; status: string } | undefined;
+    if (!bill) throw new Error('Bill not found');
+    if (bill.kind !== 'bill') {
+      // A cash expense credited the payment account directly and never touched
+      // A/P, so debiting it here invents a payable that was never owed.
+      throw new Error('Only a bill can take a bill payment — this was paid at the time it was recorded.');
+    }
+    if (bill.status === 'draft') throw new Error('Approve the bill before paying it.');
+    if (bill.status === 'void') throw new Error('This bill has been voided.');
+
+    const outstanding = billBalance(db, tenantId, input.expense_id);
+    if (input.amount_pesewas > outstanding) {
+      throw new Error(
+        `Payment of ${formatMoney(input.amount_pesewas)} is more than the ${formatMoney(outstanding)} still owed on this bill.`,
+      );
+    }
+
     db.prepare(`INSERT INTO bill_payments (${paymentCols}) VALUES (@id,@tenant_id,@expense_id,@paid_from_account_id,@amount_pesewas,@method,@reference,@paid_at,@notes,@created_at,@updated_at,NULL)`).run({ id, tenant_id: tenantId, ...input, reference: input.reference ?? null, notes: input.notes ?? null, created_at: now, updated_at: now });
     postOnce(db, tenantId, { entry_date: toEntryDate(input.paid_at), memo: 'Bill payment', source_type: 'bill_payment', source_id: id, source_event: 'paid', origin: 'auto', lines: [{ account_id: resolveAccount(db, tenantId, 'ap'), debit_pesewas: input.amount_pesewas, credit_pesewas: 0 }, { account_id: input.paid_from_account_id, debit_pesewas: 0, credit_pesewas: input.amount_pesewas }] });
   }); tx();
@@ -111,5 +175,15 @@ export function registerExpensesIpc(): void {
   ipcMain.handle('expenses:update', wrap('expenses:update', z.object({ id: Uuid, patch: ExpenseUpdateInput }), ({ id, patch }) => updateExpense(getDb(), tenant(), id, patch)));
   ipcMain.handle('expenses:void', wrap('expenses:void', z.object({ id: Uuid }), ({ id }) => voidExpense(getDb(), tenant(), id)));
   ipcMain.handle('expenses:recordBillPayment', wrap('expenses:recordBillPayment', BillPaymentCreateInput, (input) => recordBillPayment(getDb(), tenant(), input)));
-  ipcMain.handle('expenses:voidBillPayment', wrap('expenses:voidBillPayment', z.object({ id: Uuid }), ({ id }) => { const t = tenant(); const e = getDb().prepare("SELECT id FROM journal_entries WHERE tenant_id=@tenant_id AND source_type='bill_payment' AND source_id=@id AND reversed_by_id IS NULL LIMIT 1").get({ tenant_id: t, id }) as { id: string } | undefined; if (e) reverseEntry(getDb(), t, e.id, new Date().toISOString().slice(0, 10), 'Bill payment voided'); getDb().prepare('UPDATE bill_payments SET deleted_at=@now, updated_at=@now WHERE id=@id AND tenant_id=@tenant_id').run({ id, tenant_id: t, now: nowIso() }); return { id }; }));
+  ipcMain.handle('expenses:voidBillPayment', wrap('expenses:voidBillPayment', z.object({ id: Uuid }), ({ id }) => {
+    const t = tenant(); const db = getDb();
+    // Same reasoning as updateExpense: the reversal and the soft delete are one
+    // change, so they belong in one transaction.
+    const tx = db.transaction(() => {
+      const e = db.prepare("SELECT id FROM journal_entries WHERE tenant_id=@tenant_id AND source_type='bill_payment' AND source_id=@id AND reversed_by_id IS NULL LIMIT 1").get({ tenant_id: t, id }) as { id: string } | undefined;
+      if (e) reverseEntry(db, t, e.id, new Date().toISOString().slice(0, 10), 'Bill payment voided');
+      db.prepare('UPDATE bill_payments SET deleted_at=@now, updated_at=@now WHERE id=@id AND tenant_id=@tenant_id').run({ id, tenant_id: t, now: nowIso() });
+    }); tx();
+    return { id };
+  }));
 }

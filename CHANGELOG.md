@@ -2,6 +2,57 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.3.11] - 2026-08-19
+
+### Fixed: bills could be overpaid, and paid bills could be voided
+
+Money going out had none of the protections money coming in already had:
+
+- A bill could be paid for **more than it was for**, which left the supplier
+  account showing that the mechanic owed *you* money.
+- A **cash expense** could take a "bill payment", inventing a debt that never
+  existed.
+- A bill could be **voided after it had been paid**, cancelling the bill but not
+  the payment.
+- A **draft** bill could be paid before it was even approved.
+
+Each of these is now refused with an explanation of what to do instead.
+
+### Fixed: approving an expense could leave it approved with nothing in the books
+
+If the books were closed for the period, approving a draft expense marked it
+approved and then failed to record it — money spent, books silent. The two now
+succeed or fail together.
+
+### Fixed: voiding a deposit that had already been applied
+
+Once an invoice is issued, any deposit held against it moves across to what the
+customer owes. Voiding the deposit after that point only undid half of it. It is
+now refused, with a pointer to record a refund instead.
+
+### Fixed: a discount bigger than the invoice
+
+Entering one saved a broken invoice that could never be issued, with an error
+that blamed the wrong thing. It is now refused when you enter it.
+
+### Fixed: Utilization under-counted every part-day rental
+
+A hire spanning a day and a half was charged as two days but counted as one, so
+Utilization and Revenue could never be reconciled. Both now count the same way.
+
+### Fixed: the Record payment button did not record a payment
+
+On an unpaid bill it opened a read-only page instead. It now opens the payment
+window, as the label always promised.
+
+### Fixed: the report date range was still being dropped
+
+The date range added to Top Customers and the Trip Log in 1.3.10 was discarded
+one layer below the screen, so those reports were still showing all-time
+figures. They now genuinely honour the period you pick.
+
+---
+
 ## [1.3.10] - 2026-08-19
 
 ### Fixed: booking and return lines showed a code instead of the item
