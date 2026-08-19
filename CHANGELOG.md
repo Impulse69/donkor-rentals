@@ -2,6 +2,31 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.5.0-beta.2] - 2026-08-19 (BETA)
+
+### Fixed: adding the same item twice made two lines instead of two of it
+
+Picking a product that was already on the booking added a second row of
+quantity 1, rather than raising the quantity on the row already there. A
+booking could end up reading:
+
+    White drape kit, 12 ft    QTY 1
+    Tiffany chair, white      QTY 1
+    White drape kit, 12 ft    QTY 1
+
+The totals were right, but the duplicate carried through to the customer: the
+invoice printed the same item on two lines, and the check-in sheet asked
+whoever received the kit to inspect it twice.
+
+Picking the same thing again now raises the quantity, and says so.
+
+**Hearses are deliberately exempt.** Each hearse line stands for one vehicle
+and its registration is chosen after the line exists, so adding the same hearse
+twice still gives two lines - otherwise a two-hearse funeral could not be
+booked.
+
+---
+
 ## [1.5.0-beta.1] - 2026-08-19 (BETA)
 
 Released on the **Beta** channel only. Machines set to Latest stay on 1.4.0 and
