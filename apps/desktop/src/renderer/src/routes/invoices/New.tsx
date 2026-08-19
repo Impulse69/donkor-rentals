@@ -8,6 +8,7 @@ import { Button } from '../../components/Button';
 import { Spinner } from '../../components/Spinner';
 import { Alert } from '../../components/Alert';
 import { Input, Textarea } from '../../components/Field';
+import { CountInput } from '@renderer/components/NumericInput';
 import { useToast } from '../../components/Toast';
 import { Badge } from '../../components/Badge';
 import { KV } from '../../components/KV';
@@ -201,21 +202,19 @@ export default function NewInvoice(): JSX.Element {
               </span>
             </div>
 
-            <Input
+            <CountInput
               label="Initial payment %"
-              type="number"
               min={0}
               max={100}
-              value={String(initialPct)}
-              onChange={(e) => setInitialPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+              value={initialPct}
+              onValueChange={setInitialPct}
             />
-            <Input
+            <CountInput
               label="Before delivery %"
-              type="number"
               min={0}
               max={100}
-              value={String(beforeDeliveryPct)}
-              onChange={(e) => setBeforeDeliveryPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+              value={beforeDeliveryPct}
+              onValueChange={setBeforeDeliveryPct}
               hint={termsMismatch ? `Initial + Before Delivery = ${termsSum}% (not 100%)` : 'Initial + Before Delivery = 100%'}
             />
 

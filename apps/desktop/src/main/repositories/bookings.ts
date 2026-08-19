@@ -94,10 +94,27 @@ export function getBooking(
 }
 
 /**
+ * Collapse repeated requests for the same item (and the same unit) into one, so
+ * a booking is measured by its total demand rather than line by line.
+ */
+function mergeRequestedLines(
+  lines: ConflictCheckInput['lines'],
+): ConflictCheckInput['lines'] {
+  const merged = new Map<string, ConflictCheckInput['lines'][number]>();
+  for (const line of lines) {
+    const key = `${line.item_id}::${line.item_unit_id ?? ''}`;
+    const seen = merged.get(key);
+    if (seen) seen.quantity += line.quantity;
+    else merged.set(key, { ...line });
+  }
+  return [...merged.values()];
+}
+
+/**
  * Detect conflicts for a candidate booking window + lines.
  * Considers only active bookings (quote / reserved / out). Returns one report
- * per requested line, even when no conflict — the UI uses `available` to show
- * remaining headroom.
+ * per requested item (repeated lines are summed), even when no conflict — the
+ * UI uses `available` to show remaining headroom.
  */
 export function checkConflicts(
   db: Database,
@@ -105,7 +122,13 @@ export function checkConflicts(
   input: ConflictCheckInput,
 ): ConflictReport[] {
   const reports: ConflictReport[] = [];
-  for (const line of input.lines) {
+  // Sum the request before measuring it. Checking each line separately asks
+  // "does this line fit?" when the question is "does this booking fit?" — two
+  // lines of 40 chairs were each compared against a pool of 50 that did not yet
+  // contain the other, so 80 chairs went out of a store of 50 and nobody found
+  // out until delivery day. Pool and unit-pinned lines stay distinct because
+  // they draw on capacity differently.
+  for (const line of mergeRequestedLines(input.lines)) {
     const item = db
       .prepare(
         `SELECT id, name, total_quantity FROM items
@@ -303,11 +326,20 @@ export function updateBooking(
   const existing = getBooking(db, tenantId, id);
   if (!existing) throw new Error(`updateBooking: booking ${id} not found`);
 
-  // If the time window changes, re-check conflicts (lines unchanged here).
-  if (
+  // Capacity is consumed by quote/reserved/out. Moving the window obviously
+  // needs re-checking — but so does moving a cancelled or returned booking back
+  // into a holding status, because its stock was released and may already have
+  // been let to someone else. Without this, cancelling a booking and reviving it
+  // afterwards commits the same chairs twice.
+  const wasHolding = (ACTIVE_STATUSES as readonly string[]).includes(existing.status);
+  const willHold = patch.status
+    ? (ACTIVE_STATUSES as readonly string[]).includes(patch.status)
+    : wasHolding;
+  const windowMoved =
     (patch.starts_at && patch.starts_at !== existing.starts_at) ||
-    (patch.ends_at && patch.ends_at !== existing.ends_at)
-  ) {
+    (patch.ends_at && patch.ends_at !== existing.ends_at);
+
+  if (windowMoved || (!wasHolding && willHold)) {
     assertNoConflicts(db, tenantId, {
       starts_at: patch.starts_at ?? existing.starts_at,
       ends_at: patch.ends_at ?? existing.ends_at,

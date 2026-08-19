@@ -189,7 +189,11 @@ export function arAging(db: Database, tenantId: string, asOf: string): ArAgingRo
   ).all({ tenant_id: tenantId, as_of: asOf }) as Array<Omit<ArAgingRow, 'balance_pesewas' | 'days_overdue' | 'bucket'>>;
   return rows.map((row) => {
     const balance = row.total_pesewas - row.paid_as_of_pesewas;
-    const due = row.due_at ?? row.issued_at.slice(0, 10);
+    // Both columns hold a full ISO datetime, so the date has to come off both.
+    // Slicing only the fallback produced "2026-02-10T17:00:00.000ZT00:00:00Z",
+    // which parses to NaN — and since every comparison against NaN is false,
+    // agingBucket fell through to "90+". The whole report read as 90+ overdue.
+    const due = (row.due_at ?? row.issued_at).slice(0, 10);
     const days = Math.floor((Date.parse(`${asOf}T00:00:00Z`) - Date.parse(`${due}T00:00:00Z`)) / 86400000);
     return { ...row, balance_pesewas: balance, days_overdue: days, bucket: agingBucket(days) };
   }).filter((row) => row.balance_pesewas !== 0);

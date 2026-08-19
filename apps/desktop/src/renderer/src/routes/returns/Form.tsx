@@ -6,6 +6,7 @@ import { dateInputToIso, todayInput } from '../../lib/dates';
 import { formatGhs, formatPesewasPlain, parseCedisToPesewas } from '../../lib/format';
 import { Button } from '../../components/Button';
 import { Input, Select, Textarea } from '../../components/Field';
+import { CountInput } from '@renderer/components/NumericInput';
 import { Alert } from '../../components/Alert';
 import { EmptyState } from '../../components/EmptyState';
 import { Spinner } from '../../components/Spinner';
@@ -189,13 +190,12 @@ export default function ReturnForm(): JSX.Element {
                       { value: 'write_off', label: 'Write-off' },
                     ]}
                   />
-                  <Input
+                  <CountInput
                     label="Affected qty"
-                    type="number"
                     min={1}
                     max={line.quantity}
-                    value={String(state.quantity)}
-                    onChange={(e) => setLine(line.id, { quantity: Number(e.target.value) })}
+                    value={state.quantity}
+                    onValueChange={(quantity) => setLine(line.id, { quantity })}
                   />
                   <Input
                     label="Charge"

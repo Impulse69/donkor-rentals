@@ -129,4 +129,35 @@ describe('accounting reports', () => {
     ]);
     db.close();
   });
+
+  it('buckets by how overdue the invoice actually is', () => {
+    // Regression: due_at holds a full ISO datetime, and only the issued_at
+    // fallback was sliced to a date. The concatenation built
+    // "2026-02-10T17:00:00.000ZT00:00:00Z", which parses to NaN — and since
+    // every comparison against NaN is false, agingBucket fell through to
+    // "90+". Every open invoice read as more than 90 days overdue, so the whole
+    // report was useless. The old assertion above could not catch it: it never
+    // looked at days_overdue or bucket.
+    const db = makeDb();
+    const invoice = createInvoiceFromBooking(db, TENANT, {
+      booking_id: BOOKING,
+      due_at: '2026-02-10T17:00:00.000Z',
+      include_statutory_taxes: false,
+    } as Parameters<typeof createInvoiceFromBooking>[2]);
+    updateInvoice(db, TENANT, invoice.id, { status: 'issued' } as Parameters<typeof updateInvoice>[3]);
+    db.prepare('UPDATE invoices SET issued_at = ? WHERE id = ?').run('2026-02-01T00:00:00.000Z', invoice.id);
+
+    const notYetDue = arAging(db, TENANT, '2026-02-05')[0];
+    expect(notYetDue.days_overdue).toBe(-5);
+    expect(notYetDue.bucket).toBe('current');
+
+    const twoWeeksLate = arAging(db, TENANT, '2026-02-24')[0];
+    expect(twoWeeksLate.days_overdue).toBe(14);
+    expect(twoWeeksLate.bucket).toBe('d1_30');
+
+    const veryLate = arAging(db, TENANT, '2026-06-01')[0];
+    expect(veryLate.days_overdue).toBe(111);
+    expect(veryLate.bucket).toBe('d90_plus');
+    db.close();
+  });
 });
