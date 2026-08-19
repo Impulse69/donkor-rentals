@@ -252,3 +252,62 @@ test('editing a booking keeps the driver even after the hearse is retired', asyn
   expect(after.pickup).toBe('Tema Community 1');
   expect(after.dropoff).toBe('Osu Cemetery');
 });
+
+test('picking the same item twice raises its quantity instead of repeating it', async () => {
+  // Reported from a booking that listed "White drape kit x1" twice. Picking a
+  // thing twice means two of them; it does not mean putting it on the booking
+  // twice. The duplicate rode downstream too - the customer's invoice printed
+  // the item on two lines and the check-in sheet asked for it to be inspected
+  // twice.
+  await win.evaluate(() => { window.location.hash = '#/'; });
+  await expect(win.locator('h1.page-title')).toBeVisible();
+  await win.evaluate(() => { window.location.hash = '#/bookings/new'; });
+  await expect(win.locator('h1.page-title')).toBeVisible();
+
+  const picker = win.locator('select[aria-label="Add item to booking"]');
+  await expect(picker).toBeVisible({ timeout: 10_000 });
+  const value = await picker.locator('option:not([value=""])').first().getAttribute('value');
+
+  await picker.selectOption(value ?? '');
+  await win.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(win.getByLabel('Quantity')).toHaveCount(1);
+
+  await picker.selectOption(value ?? '');
+  await win.getByRole('button', { name: 'Add', exact: true }).click();
+
+  // Still one line - now for two of them.
+  await expect(win.getByLabel('Quantity')).toHaveCount(1);
+  await expect(win.getByLabel('Quantity')).toHaveValue('2');
+});
+
+test('two hearses still get a line each, so both can be assigned', async () => {
+  // The exception that stops the merge being wrong: a line here stands for one
+  // vehicle, and the unit is pinned after the line exists. Merging them would
+  // make a two-hearse funeral impossible to book.
+  const hearseId = await win.evaluate(async () => {
+    type Env = { ok: boolean; data?: { id: string }; error?: { message?: string } };
+    type Api = { catalog: { create: (i: unknown) => Promise<Env> } };
+    const api = (window as unknown as { donkor: Api }).donkor;
+    const r = await api.catalog.create({
+      kind: 'hearse', sku: `HRS-DUP-${Date.now()}`, name: 'Mercedes hearse', description: null,
+      daily_rate_pesewas: 50_000, replacement_value_pesewas: 9_000_000, total_quantity: 2, status: 'active',
+    });
+    if (!r.ok || !r.data) throw new Error(r.error?.message ?? 'catalog.create failed');
+    return r.data.id;
+  });
+
+  await win.evaluate(() => { window.location.hash = '#/'; });
+  await expect(win.locator('h1.page-title')).toBeVisible();
+  await win.evaluate(() => { window.location.hash = '#/bookings/new'; });
+  await expect(win.locator('h1.page-title')).toBeVisible();
+
+  const picker = win.locator('select[aria-label="Add item to booking"]');
+  await expect(picker).toBeVisible({ timeout: 10_000 });
+
+  await picker.selectOption(hearseId);
+  await win.getByRole('button', { name: 'Add', exact: true }).click();
+  await picker.selectOption(hearseId);
+  await win.getByRole('button', { name: 'Add', exact: true }).click();
+
+  await expect(win.getByLabel('Quantity')).toHaveCount(2);
+});

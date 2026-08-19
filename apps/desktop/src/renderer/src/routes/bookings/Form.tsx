@@ -159,6 +159,29 @@ export default function BookingForm(): JSX.Element {
   function addLineFor(itemId: string): void {
     const item = itemsById.get(itemId);
     if (!item) return;
+
+    /*
+     * Picking the same thing twice means "I want two of them", not "put it on
+     * the booking twice". Appending unconditionally produced two rows of
+     * "White drape kit x1", which then rode all the way through: the customer's
+     * invoice printed the same item on two lines, and the check-in sheet asked
+     * whoever received the kit to inspect it twice.
+     *
+     * Hearses are the exception and always get their own line. Each line there
+     * stands for one vehicle, and the unit is pinned afterwards — merging them
+     * would make it impossible to book two hearses on one job.
+     */
+    const poolable = item.kind !== 'hearse';
+    const existing = poolable
+      ? lines.find((l) => l.item_id === item.id && l.item_unit_id === null)
+      : undefined;
+
+    if (existing) {
+      patchLine(existing.key, { quantity: existing.quantity + 1 });
+      toast.ok(`${item.name} — quantity ${existing.quantity + 1}`);
+      return;
+    }
+
     setLines((cur) => [...cur, {
       key: `${itemId}-${Date.now()}`,
       item_id: item.id,
