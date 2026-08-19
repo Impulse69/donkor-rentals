@@ -2,6 +2,17 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.3.5] — 2026-08-18
+
+### Fixed: two sidebar items lit up at once
+
+Clicking **Vendors** also highlighted **Expenses**, and clicking **Calendar**
+also highlighted **Bookings**. The sidebar was matching on the start of the web
+address rather than the whole thing. Every item now matches exactly, so only the
+page you are on is highlighted.
+
+---
+
 ## [1.3.4] — 2026-08-18
 
 ### Walk-in customers can leave a phone number

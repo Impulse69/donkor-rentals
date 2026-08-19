@@ -128,6 +128,17 @@ test('navigates every converted screen without an error boundary', async () => {
   }
 });
 
+test('exactly one sidebar link is active at a time, even on a nested route', async () => {
+  // Regression: NavLink matches by prefix unless `end` is set, and it was only
+  // set for "/". On /bookings/calendar both Bookings and Calendar lit up; same
+  // for Expenses under /expenses/vendors. Every sidebar entry is its own
+  // destination, so exact matching is the rule.
+  await win.locator('.sidebar-nav').getByText('Calendar', { exact: true }).click();
+  await expect(win).toHaveURL(/bookings\/calendar/);
+  await expect(win.locator('.sidebar-link.active')).toHaveCount(1);
+  await expect(win.locator('.sidebar-link.active')).toContainText('Calendar');
+});
+
 test('a fresh install explains an empty catalogue instead of a dead item picker', async () => {
   // Regression: seeding is gated on !app.isPackaged, so a real install starts
   // with no products. The picker still rendered its "Party supplies" and

@@ -136,7 +136,11 @@ function SidebarLink({ route }: { route: RouteDef }): JSX.Element {
   return (
     <NavLink
       to={route.path}
-      end={route.path === '/'}
+      // NavLink matches by prefix unless `end` is set, and this was only set for
+      // "/". So on /bookings/calendar BOTH the Bookings and Calendar links lit up,
+      // and the same for Expenses under /expenses/vendors. Every sidebar entry is
+      // a distinct destination, so exact matching is the right default for all.
+      end
       className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
     >
       {route.nav && <NavIcon className="glyph" icon={route.nav.icon} />}
