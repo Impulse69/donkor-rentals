@@ -66,9 +66,12 @@ export default function AccountRegister(): JSX.Element {
                   <th className="num" style={{ width: 140 }}>Running balance</th>
                 </tr>
               </thead>
-              <tbody>
+              {/* A register line is a single ledger posting with nothing further to
+                open, so rows override the pointer cursor .dtable paints by default —
+                a cursor that promises a click it cannot deliver is the defect. */}
+            <tbody>
                 {rows.map((r) => (
-                  <tr key={r.line_id}>
+                  <tr key={r.line_id} style={{ cursor: 'default' }}>
                     <td className="mono">{formatDate(r.entry_date)}</td>
                     <td>{r.entry_no.startsWith('JE') ? 'Journal entry' : 'Transaction'}</td>
                     <td className="mono">{r.entry_no}</td>

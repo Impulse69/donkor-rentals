@@ -2,6 +2,19 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.3.6] — 2026-08-18
+
+### Fixed: clicking a Chart of Accounts row did nothing
+
+The pointer changed to a hand over every row, and every other list in the app
+opens the row you click — but the Chart of Accounts just sat there. Clicking a
+row now opens that account's register (the same place **Run report** goes).
+
+On the register itself, each line is a single posting with nothing further to
+open, so the hand pointer no longer appears there.
+
+---
+
 ## [1.3.5] — 2026-08-18
 
 ### Fixed: two sidebar items lit up at once

@@ -246,7 +246,16 @@ export default function ChartOfAccounts(): JSX.Element {
                 {list.map((a) => {
                   const indent = a.parent_id ? 22 : 0;
                   return (
-                    <tr key={a.id} style={{ opacity: a.is_active ? 1 : 0.58 }}>
+                    <tr
+                      key={a.id}
+                      style={{ opacity: a.is_active ? 1 : 0.58 }}
+                      // Every other list opens its row on click, and .dtable paints
+                      // the pointer cursor on all rows — so a row that does nothing
+                      // reads as broken. Open the account's register, which is
+                      // where "Run report" goes too. The Action cell stops
+                      // propagation so the split button keeps working.
+                      onClick={() => navigate(`/accounting/accounts/${a.id}`)}
+                    >
                       <td>
                         <div style={{ paddingLeft: indent }}>
                           <span className="cell-lead">
