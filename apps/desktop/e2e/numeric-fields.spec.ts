@@ -1,0 +1,194 @@
+import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+/**
+ * Field report: "the quantity of items during the booking process cannot be
+ * wiped or modified properly. I can only add numbers to the already existing 1."
+ *
+ * The unit tests in src/renderer/src/lib/numeric-field.test.ts cover the state
+ * machine. This drives the real widget in the real app, because the bug lived in
+ * the round trip between React state and the DOM input — which is precisely the
+ * part a pure unit test cannot see.
+ */
+
+let app: ElectronApplication;
+let win: Page;
+let userData: string;
+
+test.beforeAll(async () => {
+  // Its own company file. This spec adds a product, and the smoke suite asserts
+  // on a catalogue that is still empty — sharing one database makes whichever
+  // spec runs second fail for reasons that have nothing to do with it.
+  userData = mkdtempSync(path.join(tmpdir(), 'donkor-numeric-'));
+  app = await electron.launch({
+    args: [path.join(__dirname, '..', 'out', 'main', 'index.js')],
+    env: { ...process.env, DONKOR_USERDATA_OVERRIDE: userData },
+  });
+  win = await app.firstWindow();
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(1);
+  });
+
+  const wizard = win.locator('form:has-text("Set up your company")');
+  await Promise.race([
+    wizard.waitFor({ state: 'visible', timeout: 20_000 }).catch(() => null),
+    win.waitForSelector('.shell', { timeout: 20_000 }).catch(() => null),
+  ]);
+  if (await wizard.count()) {
+    await wizard.getByLabel(/Company name/).fill('Donkor & Sons');
+    await wizard.getByRole('button', { name: 'Save company setup' }).click();
+  }
+  await win.waitForSelector('.shell', { timeout: 20_000 });
+
+  // A packaged-style launch does not seed, so give the booking form something
+  // to pick. Going through the real API keeps this honest.
+  await win.evaluate(async () => {
+    await (window as unknown as { donkor: { catalog: { create: (i: unknown) => Promise<unknown> } } }).donkor.catalog.create({
+      kind: 'party_supply',
+      sku: 'CHR-GLD-01',
+      name: 'Tiffany chair, gold',
+      description: null,
+      daily_rate_pesewas: 1000,
+      replacement_value_pesewas: 6000,
+      total_quantity: 500,
+      status: 'active',
+    });
+  });
+});
+
+test.afterAll(async () => {
+  await app?.close();
+  rmSync(userData, { recursive: true, force: true });
+});
+
+/** Open a fresh booking form with one line already added. */
+async function bookingWithOneLine(): Promise<void> {
+  // Bounce via the dashboard: re-setting the same hash does not remount the
+  // form, so lines from a previous test would pile up in this one.
+  await win.evaluate(() => { window.location.hash = '#/'; });
+  await expect(win.locator('h1.page-title')).toBeVisible();
+  await win.evaluate(() => { window.location.hash = '#/bookings/new'; });
+  await expect(win.locator('h1.page-title')).toBeVisible();
+
+  const picker = win.locator('select[aria-label="Add item to booking"]');
+  await expect(picker).toBeVisible({ timeout: 10_000 });
+  // Pick the first real product; the leading option is the placeholder.
+  const value = await picker.locator('option:not([value=""])').first().getAttribute('value');
+  await picker.selectOption(value ?? '');
+  await win.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(win.getByLabel('Quantity')).toBeVisible();
+}
+
+test('the quantity box can be cleared', async () => {
+  await bookingWithOneLine();
+  const qty = win.getByLabel('Quantity');
+  await expect(qty).toHaveValue('1');
+
+  // The reported symptom: this used to snap straight back to "1".
+  await qty.click();
+  await qty.press('ControlOrMeta+a');
+  await qty.press('Delete');
+  await expect(qty).toHaveValue('');
+});
+
+test('typing a quantity replaces the 1 instead of appending to it', async () => {
+  await bookingWithOneLine();
+  const qty = win.getByLabel('Quantity');
+
+  // Exactly what a person does: click the box and type. Focus selects the
+  // contents, so this must give 5 — not 15.
+  await qty.click();
+  await qty.fill('5');
+  await expect(qty).toHaveValue('5');
+
+  await qty.blur();
+  await expect(qty).toHaveValue('5');
+});
+
+test('an emptied quantity settles back to 1 rather than sticking at nothing', async () => {
+  await bookingWithOneLine();
+  const qty = win.getByLabel('Quantity');
+
+  await qty.click();
+  await qty.press('ControlOrMeta+a');
+  await qty.press('Delete');
+  await expect(qty).toHaveValue('');
+
+  await qty.blur();
+  await expect(qty).toHaveValue('1');
+});
+
+test('a multi-digit quantity drives the subtotal', async () => {
+  await bookingWithOneLine();
+  const qty = win.getByLabel('Quantity');
+
+  await qty.click();
+  await qty.fill('250');
+  await expect(qty).toHaveValue('250');
+
+  // 250 chairs at GH₵10.00/day, over however many days the default range spans.
+  // Proves the typed number actually reached the model rather than merely
+  // looking right in the box.
+  const label = await win.getByText(/^Subtotal - \d+ days?$/).textContent();
+  const days = Number(/(\d+)/.exec(label ?? '')?.[1]);
+  expect(days).toBeGreaterThan(0);
+  const expected = (250 * 10 * days).toLocaleString('en-GB', { minimumFractionDigits: 2 });
+  await expect(win.getByText(expected, { exact: false }).first()).toBeVisible({ timeout: 10_000 });
+});
+
+test('the daily rate accepts a decimal amount typed over the existing one', async () => {
+  await bookingWithOneLine();
+  const rate = win.getByLabel('Daily rate');
+  await expect(rate).toHaveValue('10.00');
+
+  // This is the money version of the same bug: it used to walk 10.00 -> 10.02.
+  await rate.click();
+  await rate.fill('25.50');
+  await expect(rate).toHaveValue('25.50');
+
+  await rate.blur();
+  await expect(rate).toHaveValue('25.50');
+});
+
+test('the daily rate can be backspaced to empty and settles at 0.00', async () => {
+  await bookingWithOneLine();
+  const rate = win.getByLabel('Daily rate');
+
+  await rate.click();
+  await rate.press('ControlOrMeta+a');
+  await rate.press('Delete');
+  await expect(rate).toHaveValue('');
+
+  await rate.blur();
+  await expect(rate).toHaveValue('0.00');
+});
+
+test('clearing a date does not take the booking form down', async () => {
+  // Regression: dateInputToIso ran during render and threw on an empty string,
+  // so the keystroke that clears a date to retype it replaced the whole form
+  // with the error boundary — losing everything else already entered.
+  await bookingWithOneLine();
+
+  const start = win.locator('input[type="date"]').first();
+  await start.click();
+  await start.press('ControlOrMeta+a');
+  await start.press('Delete');
+  await expect(start).toHaveValue('');
+
+  // The form is still standing.
+  await expect(win.locator('.error-boundary')).toHaveCount(0);
+  await expect(win.getByLabel('Quantity')).toBeVisible();
+
+  // ...and refuses to save an incomplete booking rather than guessing a date.
+  const save = win.getByRole('button', { name: /Reserved|Save|Quote/ }).last();
+  await expect(save).toBeDisabled();
+
+  // Typing a real date brings it back to life. The end date has to move with
+  // it — "end after start" is a separate, legitimate guard.
+  await start.fill('2027-01-04');
+  await win.locator('input[type="date"]').nth(1).fill('2027-01-06');
+  await expect(win.locator('.error-boundary')).toHaveCount(0);
+  await expect(save).toBeEnabled();
+});

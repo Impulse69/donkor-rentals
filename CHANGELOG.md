@@ -2,6 +2,45 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.3.8] — 2026-08-19
+
+### Fixed: quantity and amount boxes could not be edited
+
+Reported from the field: the quantity on a booking line could not be cleared,
+so you could only add digits onto the "1" already sitting there — typing 5 gave
+you 15.
+
+Every number and money box in the app now behaves the way you expect: click it
+and the contents are selected, so typing replaces. You can clear it, backspace
+through it, and type a decimal. Money boxes were affected worst — typing 25.50
+over an existing 10.00 used to leave you with 10.02.
+
+### Fixed: clearing a date closed the page
+
+Clearing the pickup date on a booking, or the start date on the Taxes page, to
+retype it replaced the whole screen with an error — losing everything else you
+had entered. Dates can now be cleared and retyped normally. A date that does not
+exist (31 February) is refused instead of silently becoming a different day.
+
+### Fixed: the A/R Ageing report said everything was 90+ days overdue
+
+Every unpaid invoice landed in the "90+ days" column no matter when it was due,
+and the days-overdue figure was blank. The report now ages invoices correctly,
+so Current / 1-30 / 31-60 / 61-90 mean what they say.
+
+### Fixed: two ways to overbook
+
+Both let you commit more stock than you own — the one thing the app exists to
+prevent.
+
+- Adding the **same item twice on one booking** was allowed past the limit: 40
+  chairs plus another 40 out of a pool of 50 went through, because each line was
+  checked on its own without counting the other.
+- **Reviving a cancelled booking** was allowed even after its stock had been
+  re-let to someone else, committing the same chairs to two customers.
+
+---
+
 ## [1.3.7] — 2026-08-19
 
 ### A backup is now one file you can share

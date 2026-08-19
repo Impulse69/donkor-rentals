@@ -4,12 +4,13 @@ import { useAsync } from '../../lib/useAsync';
 import { api } from '../../lib/api';
 import { paths } from '../../router/paths';
 import { Input, Select, Textarea } from '../../components/Field';
+import { CountInput, MoneyInput } from '@renderer/components/NumericInput';
 import { Button } from '../../components/Button';
 import { Spinner } from '../../components/Spinner';
 import { Badge } from '../../components/Badge';
 import { Alert } from '../../components/Alert';
 import { useToast } from '../../components/Toast';
-import { formatGhs, formatPesewasPlain, parseCedisToPesewas, formatDate } from '../../lib/format';
+import { formatGhs, formatDate } from '../../lib/format';
 import {
   BOOKING_STATUS_LABELS,
   type BookingLineCreateInput,
@@ -18,7 +19,7 @@ import {
   type Item,
   type ItemUnit,
 } from '@shared/schemas';
-import { dateInputToIso, localDateInput, localTimeInput, daysCovered } from './helpers';
+import { dateInputToIsoOrNull, localDateInput, localTimeInput, daysCovered } from './helpers';
 
 interface DraftLine {
   key: string;
@@ -89,8 +90,23 @@ export default function BookingForm(): JSX.Element {
     })));
   }, [editing, existing.status, existingDataId, existingData]);
 
-  const startsIso = useMemo(() => dateInputToIso(startDate, startTime), [startDate, startTime]);
-  const endsIso = useMemo(() => dateInputToIso(endDate, endTime), [endDate, endTime]);
+  // A date input is empty for as long as it takes to clear it and type a new
+  // one, and dateInputToIso throws on an empty string. Called here — in render —
+  // that threw the whole form into the error boundary mid-keystroke, losing
+  // everything else already typed in.
+  const startsIsoRaw = useMemo(() => dateInputToIsoOrNull(startDate, startTime), [startDate, startTime]);
+  const endsIsoRaw = useMemo(() => dateInputToIsoOrNull(endDate, endTime), [endDate, endTime]);
+  const datesValid = startsIsoRaw !== null && endsIsoRaw !== null;
+  // A stable stand-in so the panel keeps rendering while a date is half-typed.
+  // It must not change identity between renders or the availability check would
+  // refire on every keystroke. Nothing that matters uses it: everything with a
+  // consequence is gated on `datesValid`.
+  const placeholder = useMemo(
+    () => ({ start: new Date().toISOString(), end: new Date(Date.now() + 86_400_000).toISOString() }),
+    [],
+  );
+  const startsIso = startsIsoRaw ?? placeholder.start;
+  const endsIso = endsIsoRaw ?? placeholder.end;
   const days = daysCovered(startsIso, endsIso);
 
   const itemsById = useMemo(() => {
@@ -107,7 +123,7 @@ export default function BookingForm(): JSX.Element {
   }, [lines]);
 
   useEffect(() => {
-    if (mappedLinesForConflicts.length === 0 || new Date(startsIso) >= new Date(endsIso)) {
+    if (!datesValid || mappedLinesForConflicts.length === 0 || new Date(startsIso) >= new Date(endsIso)) {
       setConflicts(null);
       setConflictBusy(false);
       return;
@@ -129,7 +145,7 @@ export default function BookingForm(): JSX.Element {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [startsIso, endsIso, mappedLinesForConflicts, editing, id]);
+  }, [datesValid, startsIso, endsIso, mappedLinesForConflicts, editing, id]);
 
   const hasBlockingConflict = (conflicts ?? []).some((r) => r.available < r.requested);
 
@@ -155,6 +171,7 @@ export default function BookingForm(): JSX.Element {
     if (customerMode === 'new' && !newCustomerName.trim()) { toast.error('Enter the customer name'); return; }
     if (customerMode === 'walkin' && !renterName.trim()) { toast.error('Enter a renter label'); return; }
     if (lines.length === 0) { toast.error('Add at least one line'); return; }
+    if (!datesValid) { toast.error('Pick a start and an end date'); return; }
     if (new Date(startsIso) >= new Date(endsIso)) { toast.error('End date must be after start'); return; }
 
     setSaving(true);
@@ -336,7 +353,7 @@ export default function BookingForm(): JSX.Element {
             <Link to={editing && id ? paths.bookings.detail(id) : paths.bookings.list}>
               <Button variant="ghost" type="button">Cancel</Button>
             </Link>
-            <Button variant="primary" type="submit" loading={saving} disabled={hasBlockingConflict || new Date(startsIso) >= new Date(endsIso)}>
+            <Button variant="primary" type="submit" loading={saving} disabled={hasBlockingConflict || !datesValid || new Date(startsIso) >= new Date(endsIso)}>
               {editing ? 'Save changes' : BOOKING_STATUS_LABELS[initialStatus]}
             </Button>
           </div>
@@ -444,11 +461,8 @@ function LineRow({ line, item, onRemove, onChange }: {
         {item.kind === 'hearse' && (
           <Select label="Unit" value={line.item_unit_id ?? ''} onChange={(e) => onChange({ item_unit_id: e.target.value || null })} options={unitOptions} />
         )}
-        <Input label="Quantity" mono inputMode="numeric" value={String(line.quantity)} onChange={(e) => {
-          const n = Number.parseInt(e.target.value.replace(/[^\d]/g, ''), 10) || 1;
-          onChange({ quantity: Math.max(1, n) });
-        }} />
-        <Input label="Daily rate" mono prefix="GH₵" value={formatPesewasPlain(line.daily_rate_pesewas)} onChange={(e) => onChange({ daily_rate_pesewas: parseCedisToPesewas(e.target.value) })} />
+        <CountInput label="Quantity" min={1} value={line.quantity} onValueChange={(quantity) => onChange({ quantity })} />
+        <MoneyInput label="Daily rate" value={line.daily_rate_pesewas} onValueChange={(daily_rate_pesewas) => onChange({ daily_rate_pesewas })} />
       </div>
     </div>
   );

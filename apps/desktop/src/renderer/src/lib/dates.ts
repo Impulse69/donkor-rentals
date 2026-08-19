@@ -12,8 +12,32 @@ export function localDateInput(iso: string): string {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * An `<input type="date">` is empty for as long as it takes someone to clear it
+ * and type a new one. `new Date('T08:00')` is an Invalid Date and
+ * `.toISOString()` throws on it, so that keystroke used to take down the whole
+ * form via the error boundary — losing everything else typed into it.
+ *
+ * Returns null when there is no usable date. Callers decide what an absent date
+ * means; crashing is never the answer.
+ */
+export function dateInputToIsoOrNull(date: string, time = '08:00'): string | null {
+  if (!date) return null;
+  const d = new Date(`${date}T${time || '08:00'}`);
+  if (Number.isNaN(d.getTime())) return null;
+  // A date is parsed local, and JavaScript quietly rolls impossible days over:
+  // "2026-02-31" becomes 3 March. A date field that silently books a different
+  // day than the one written in it is worse than one that refuses, so check the
+  // parse round-trips before trusting it.
+  const [y, m, day] = date.split('-').map(Number);
+  if (d.getFullYear() !== y || d.getMonth() + 1 !== m || d.getDate() !== day) return null;
+  return d.toISOString();
+}
+
 export function dateInputToIso(date: string, time = '08:00'): string {
-  return new Date(`${date}T${time}`).toISOString();
+  const iso = dateInputToIsoOrNull(date, time);
+  if (iso === null) throw new Error(`dateInputToIso: "${date}" is not a date`);
+  return iso;
 }
 
 export function localTimeInput(iso: string): string {

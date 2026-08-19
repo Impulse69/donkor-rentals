@@ -42,7 +42,11 @@ function presetRange(preset: Preset): { start: string; end: string } {
 }
 
 function dayBefore(date: string): string {
+  // Called straight from render. Clearing the Start date to retype it leaves an
+  // empty string here, and `.toISOString()` on an Invalid Date throws — which
+  // used to replace the Taxes page with the error boundary mid-keystroke.
   const d = new Date(`${date}T00:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) return date;
   d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().slice(0, 10);
 }
