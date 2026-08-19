@@ -2,6 +2,36 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.5.0-beta.1] - 2026-08-19 (BETA)
+
+Released on the **Beta** channel only. Machines set to Latest stay on 1.4.0 and
+are not offered this build. To try it: gear icon > Settings > Update channel >
+Beta.
+
+### The bottom bar is no longer a wall of buttons
+
+An invoice showed five buttons across the bottom and a booking showed as many as
+eight, two of them coloured. There was no way to tell at a glance which one to
+press.
+
+Each screen now shows **one green button - the next step in the job** - with a
+small arrow beside it holding everything else.
+
+**Bookings** now read: Back ... Edit, and one green action.
+
+- While the kit is out, the green button is **Record return** - the check-in
+  that reconciles the deposit and records damage.
+- **Mark returned**, which only flips the status and skips the money entirely,
+  has moved into the menu. It previously sat next to Record return wearing the
+  green, so the wrong one was the obvious one.
+- **Remove booking** has moved into the menu, at the bottom, in red. A
+  destructive action should not sit beside the button pressed every time.
+
+**Invoices** now read: Cancel ... Print, and one green action. Void has moved
+into the menu for the same reason.
+
+---
+
 ## [1.4.0] - 2026-08-19
 
 ### Buttons look like buttons

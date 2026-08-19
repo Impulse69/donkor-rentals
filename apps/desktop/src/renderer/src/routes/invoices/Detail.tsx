@@ -12,7 +12,8 @@ import {
 } from '../../lib/format';
 import { printHtml } from '../../lib/print';
 import { ActionBar } from '../../components/ActionBar';
-import { Button } from '../../components/Button';
+import { Button, SplitButton } from '../../components/Button';
+import { Dropdown } from '../../components/Dropdown';
 import { Badge } from '../../components/Badge';
 import { StatusPill, type StatusPillStatus } from '../../components/StatusPill';
 import { Spinner } from '../../components/Spinner';
@@ -174,6 +175,37 @@ export default function InvoiceDetail(): JSX.Element {
     const latest = inv.payments[inv.payments.length - 1];
     if (latest) await generateReceipt(latest.id);
   }
+
+  const chainLabel =
+    chainStep === 'issue' ? 'Save and issue'
+      : chainStep === 'pay' ? (showPay ? 'Cancel payment' : 'Record payment')
+        : 'Print receipt';
+
+  function runChainStep(): void {
+    if (chainStep === 'issue') void moveStatus('issued');
+    else if (chainStep === 'pay') setShowPay((v) => !v);
+    else if (chainStep === 'receipt') void printLatestReceipt();
+  }
+
+  /* Everything still applicable that is not the next step. Destructive last. */
+  const secondaryActions = (
+    <>
+      {canTakePayment && chainStep !== 'pay' && (
+        <Dropdown.Item onSelect={() => setShowPay((v) => !v)}>
+          {showPay ? 'Cancel payment' : 'Record payment'}
+        </Dropdown.Item>
+      )}
+      {canPrintReceipt && chainStep !== 'receipt' && (
+        <Dropdown.Item onSelect={() => { void printLatestReceipt(); }}>Print receipt</Dropdown.Item>
+      )}
+      {(inv.status === 'draft' || inv.status === 'issued') && (
+        <>
+          <Dropdown.Divider />
+          <Dropdown.Item danger onSelect={() => { void moveStatus('void'); }}>Void invoice</Dropdown.Item>
+        </>
+      )}
+    </>
+  );
 
   // --- Print-format chooser preview math (no IPC; render-only) ----------
   const subtotalP = inv.subtotal_pesewas;
@@ -418,52 +450,28 @@ export default function InvoiceDetail(): JSX.Element {
         </div>
         <div className="invoice-actionbar-right">
           {/*
-            Raise it, issue it, take the money, hand over a receipt. Exactly one
-            button is green: whatever comes next. Everything else stays
-            available but quiet.
+            One green button for the next step, one plain button for the thing
+            people reach for constantly, and everything else folded away.
 
-            The old version keyed both "Record payment" and "Print receipt" off
-            status === 'paid'. Status only reaches 'paid' when a payment settles
-            an ISSUED invoice, so a fully-settled draft still offered to take
-            another payment and still refused to print the receipt for the money
-            already taken. Reading the balance instead makes the buttons agree
-            with the figures directly above them.
+            Five buttons across the bottom — two of them coloured, with the red
+            Void sitting against the green primary — is not a set of choices, it
+            is a wall. Worse, the destructive action was the immediate neighbour
+            of the one people press every time. Void now lives at the foot of
+            the menu, behind a divider and a second click.
           */}
-          {canTakePayment && chainStep !== 'pay' && (
-            <Button onClick={() => setShowPay((v) => !v)}>
-              {showPay ? 'Cancel payment' : 'Record payment'}
-            </Button>
-          )}
           <Button onClick={openPrintChooser}>Print</Button>
-          {canPrintReceipt && chainStep !== 'receipt' && (
-            <Button loading={docBusy} onClick={() => { void printLatestReceipt(); }}>
-              Print receipt
-            </Button>
-          )}
-          {(inv.status === 'draft' || inv.status === 'issued') && (
-            <Button variant="danger" loading={statusBusy} onClick={() => { void moveStatus('void'); }}>
-              Void
-            </Button>
-          )}
-          {chainStep === 'pay' && (
-            <Button variant="primary" onClick={() => setShowPay((v) => !v)}>
-              {showPay ? 'Cancel payment' : 'Record payment'}
-            </Button>
-          )}
-          {chainStep === 'issue' && (
-            <Button variant="primary" loading={statusBusy} onClick={() => { void moveStatus('issued'); }}>
-              Save and issue
-            </Button>
-          )}
-          {chainStep === 'receipt' && (
-            <Button variant="primary" loading={docBusy} onClick={() => { void printLatestReceipt(); }}>
-              Print receipt
-            </Button>
-          )}
-          {chainStep === null && (
-            <Button variant="primary" disabled>
-              Save
-            </Button>
+          {chainStep === null ? (
+            <Dropdown trigger={<Button aria-label="More actions">More ▾</Button>}>
+              {secondaryActions}
+            </Dropdown>
+          ) : (
+            <SplitButton
+              loading={statusBusy || docBusy}
+              onClick={runChainStep}
+              menu={secondaryActions}
+            >
+              {chainLabel}
+            </SplitButton>
           )}
         </div>
       </ActionBar>

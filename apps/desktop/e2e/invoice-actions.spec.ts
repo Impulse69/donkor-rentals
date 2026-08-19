@@ -18,8 +18,6 @@ let app: ElectronApplication;
 let win: Page;
 let userData: string;
 
-type Env<T> = { ok: boolean; data?: T; error?: { message?: string } };
-
 async function boot(): Promise<void> {
   userData = mkdtempSync(path.join(tmpdir(), 'donkor-invoice-'));
   app = await electron.launch({
@@ -96,6 +94,16 @@ function actions() {
   return win.locator('.invoice-actionbar-right');
 }
 
+function menu() {
+  return win.locator('.dropdown-menu');
+}
+
+/** Open the split button's menu. */
+async function openMenu(): Promise<void> {
+  await actions().getByRole('button', { name: 'More actions' }).click();
+  await expect(menu()).toBeVisible();
+}
+
 test.beforeAll(boot);
 test.afterAll(async () => {
   await app?.close();
@@ -133,10 +141,37 @@ test('a draft settled before it was issued still offers the receipt', async () =
   const id = await makeInvoice({ pay: true, issue: false });
   await openInvoice(id);
 
-  await expect(actions().getByRole('button', { name: 'Record payment' })).toHaveCount(0);
-  await expect(actions().getByRole('button', { name: 'Print receipt' })).toBeVisible();
   // Issuing is still the next step, so it keeps the green.
   await expect(actions().getByRole('button', { name: 'Save and issue' })).toBeVisible();
+  // Nothing is owed, so taking another payment is not offered anywhere.
+  await expect(actions().getByRole('button', { name: 'Record payment' })).toHaveCount(0);
+
+  // The receipt is one click away, in the menu beside the primary.
+  await openMenu();
+  await expect(menu().getByRole('menuitem', { name: 'Print receipt' })).toBeVisible();
+  await expect(menu().getByRole('menuitem', { name: 'Record payment' })).toHaveCount(0);
+});
+
+test('the bottom bar stays small', async () => {
+  // The complaint that started this: five buttons across the bottom, two of
+  // them coloured, and no way to tell which one to press. The bar now carries
+  // Cancel, Print, and one split primary - everything else is in the menu.
+  const id = await makeInvoice({ pay: false, issue: true });
+  await openInvoice(id);
+
+  await expect(actions().locator('button')).toHaveCount(3); // Print, primary, caret
+});
+
+test('Void is behind the menu, not beside the primary', async () => {
+  // A destructive action should not be the immediate neighbour of the button
+  // pressed every time.
+  const id = await makeInvoice({ pay: false, issue: true });
+  await openInvoice(id);
+
+  await expect(actions().getByRole('button', { name: /^Void/ })).toHaveCount(0);
+
+  await openMenu();
+  await expect(menu().getByRole('menuitem', { name: 'Void invoice' })).toBeVisible();
 });
 
 test('exactly one action is the primary one', async () => {
