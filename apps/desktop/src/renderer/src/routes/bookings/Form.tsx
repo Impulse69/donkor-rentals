@@ -259,7 +259,13 @@ export default function BookingForm(): JSX.Element {
         }));
         const created = await api.bookings.create({ ...base, status: initialStatus, lines: lineInputs });
         toast.ok(`${BOOKING_STATUS_LABELS[initialStatus]} saved`);
-        navigate(paths.bookings.detail(created.id));
+        // "Rent now" is the walk-in at the counter: the kit is going out the door
+        // this minute and the money changes hands now. Land on the booking with
+        // the payment sheet already open, so it is lines -> Rent now -> take the
+        // money -> receipt, without hunting for a button in between.
+        navigate(initialStatus === 'out'
+          ? `${paths.bookings.detail(created.id)}?pay=1`
+          : paths.bookings.detail(created.id));
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Save failed');

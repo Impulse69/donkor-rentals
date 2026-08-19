@@ -68,6 +68,10 @@ export const api = {
     get: (id: string) => unwrap(window.donkor.invoices.get(id)),
     createFromBooking: (input: Parameters<typeof window.donkor.invoices.createFromBooking>[0]) =>
       unwrap(window.donkor.invoices.createFromBooking(input)),
+    previewForBooking: (bookingId: string) =>
+      unwrap(window.donkor.invoices.previewForBooking(bookingId)),
+    takePayment: (input: Parameters<typeof window.donkor.invoices.takePayment>[0]) =>
+      unwrap(window.donkor.invoices.takePayment(input)),
     update: (id: string, patch: Parameters<typeof window.donkor.invoices.update>[1]) =>
       unwrap(window.donkor.invoices.update(id, patch)),
     softDelete: (id: string) => unwrap(window.donkor.invoices.softDelete(id)),

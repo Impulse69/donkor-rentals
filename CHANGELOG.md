@@ -2,6 +2,48 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.5.0-beta.4] - 2026-08-19 (BETA)
+
+### Take payment at the counter - no invoice screen
+
+Small rentals do not need invoicing. They need the money taken and a receipt
+handed over. So:
+
+- **Rent now** saves the booking and opens the payment sheet straight away:
+  fill the lines, press Rent now, take the money, the receipt prints. The whole
+  walk-in in one pass.
+- On any booking that still owes money, the green button is **Take payment**.
+  Amount is filled in for you, method defaults to cash, one press.
+- Once paid, the green button becomes **Record return** (while the kit is out)
+  or **Print receipt** (once it is back). Pay first, then the rest.
+- **Create invoice** stays one step down in the menu, for the big jobs that
+  want terms, deposits or payment in stages.
+
+This is what QuickBooks calls a Sales Receipt as distinct from an Invoice. An
+invoice still exists underneath - it has to, because it is what records the
+sale - but it is raised and settled for you, and you never have to open it.
+It shows in the Invoices list already marked paid.
+
+Two guarantees worth knowing:
+
+- Taking payment lands on exactly the same total as creating the invoice by
+  hand and accepting the defaults. Which button you press cannot change the
+  books.
+- If a booking already has an invoice, Take payment pays that one. It never
+  raises a second.
+
+**On tax:** the quick path includes NHIL, GETFund and VAT, matching the New
+Invoice form's default. The sheet says so. If you are not VAT-registered and
+want a rental without them, use Create invoice and switch the format off.
+
+### Fixed: a field could stop showing its real value
+
+An amount box that was focused before its figure arrived kept showing 0.00 even
+after the real figure was in place. A focused box now shows an outside change
+unless you have actually typed into it.
+
+---
+
 ## [1.5.0-beta.3] - 2026-08-19 (BETA)
 
 ### Fixed: pop-up messages were covering the buttons underneath them

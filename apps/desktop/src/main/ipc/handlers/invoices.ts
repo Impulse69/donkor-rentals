@@ -4,7 +4,10 @@ import {
   InvoiceCreateFromBooking,
   InvoiceUpdateInput,
   InvoiceFilter,
+  IsoDateTime,
   PaymentCreateInput,
+  PaymentMethod,
+  Pesewas,
   Uuid,
 } from '@shared/schemas';
 import { wrap } from '../envelope';
@@ -27,6 +30,32 @@ export function registerInvoicesIpc(): void {
     'invoices:get',
     wrap('invoices:get', z.object({ id: Uuid }), ({ id }) =>
       invoices.getInvoice(getDb(), tenant(), id),
+    ),
+  );
+
+  // The counter path: quote a booking, then take the money against it. Both
+  // sit here rather than under payments because both are really about the
+  // invoice the walk-in never has to see.
+  ipcMain.handle(
+    'invoices:previewForBooking',
+    wrap('invoices:previewForBooking', z.object({ bookingId: Uuid }), ({ bookingId }) =>
+      invoices.previewInvoiceForBooking(getDb(), tenant(), bookingId),
+    ),
+  );
+
+  ipcMain.handle(
+    'invoices:takePayment',
+    wrap(
+      'invoices:takePayment',
+      z.object({
+        booking_id: Uuid,
+        amount_pesewas: Pesewas.refine((n) => n > 0, 'Amount must be more than zero'),
+        method: PaymentMethod,
+        paid_at: IsoDateTime,
+        reference: z.string().max(200).nullable().optional(),
+        notes: z.string().max(2000).nullable().optional(),
+      }),
+      (input) => invoices.takePaymentForBooking(getDb(), tenant(), input),
     ),
   );
 

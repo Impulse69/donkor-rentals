@@ -187,6 +187,27 @@ function call<T>(channel: string, payload?: unknown): Promise<Result<T>> {
   return ipcRenderer.invoke(channel, payload);
 }
 
+
+/** Mirrors InvoicePreview in main/repositories/invoices.ts. */
+export interface InvoicePreview {
+  days: number;
+  subtotal_pesewas: number;
+  nhil_pesewas: number;
+  getfund_pesewas: number;
+  vat_pesewas: number;
+  total_pesewas: number;
+  include_statutory_taxes: boolean;
+}
+
+export interface TakePaymentInput {
+  booking_id: string;
+  amount_pesewas: number;
+  method: Payment['method'];
+  paid_at: string;
+  reference?: string | null;
+  notes?: string | null;
+}
+
 const api = {
   ping: (): Promise<string> => ipcRenderer.invoke('ping'),
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
@@ -234,6 +255,13 @@ const api = {
     get: (id: string) => call<InvoiceWithLines | null>('invoices:get', { id }),
     createFromBooking: (input: InvoiceCreateFromBooking) =>
       call<InvoiceWithLines>('invoices:createFromBooking', input),
+    previewForBooking: (bookingId: string) =>
+      call<InvoicePreview>('invoices:previewForBooking', { bookingId }),
+    takePayment: (input: TakePaymentInput) =>
+      call<{ invoice: InvoiceWithLines; payment: Payment; created_invoice: boolean }>(
+        'invoices:takePayment',
+        input,
+      ),
     update: (id: string, patch: InvoiceUpdateInput) =>
       call<InvoiceWithLines>('invoices:update', { id, patch }),
     softDelete: (id: string) => call<{ id: string }>('invoices:softDelete', { id }),

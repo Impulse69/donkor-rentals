@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAsync } from '../../lib/useAsync';
 import { api } from '../../lib/api';
 import { paths } from '../../router/paths';
@@ -14,6 +14,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { Alert } from '../../components/Alert';
 import { AuditCard } from '../../components/AuditCard';
 import { ConfirmModal } from '../../components/Modal';
+import { TakePaymentSheet } from '../../components/TakePaymentSheet';
 import { KV } from '../../components/KV';
 import { useToast } from '../../components/Toast';
 import {
@@ -43,6 +44,21 @@ export default function BookingDetail(): JSX.Element {
     [firstInvoiceId],
   );
   const [busy, setBusy] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [takingPayment, setTakingPayment] = useState(false);
+
+  // "Rent now" lands here with ?pay=1 so the payment sheet is already open:
+  // fill the lines, press Rent now, take the money, hand over the receipt —
+  // the whole walk-in in one pass. Consume the flag so a refresh does not
+  // reopen it.
+  useEffect(() => {
+    if (searchParams.get('pay') === '1') {
+      setTakingPayment(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('pay');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   // The confirm button stayed live while the request was in flight, so a second
   // click fired a second call. Harmless for a soft delete; the same omission on
   // a reversal would post the reversal twice.
@@ -81,25 +97,47 @@ export default function BookingDetail(): JSX.Element {
   const transitions = BOOKING_STATUS_TRANSITIONS[b.status];
   const hasInvoice = Boolean(invoices.data && invoices.data.length > 0);
   const latestPayment = invoiceDetail.data?.payments?.[invoiceDetail.data.payments.length - 1];
-  const existingInvoiceId = hasInvoice ? invoices.data?.[0]?.id : undefined;
+  // Only a live (non-void) invoice counts as "has an invoice". A voided one is
+  // history, and the quick path will raise a fresh one over it.
+  const liveInvoice = invoiceDetail.data && invoiceDetail.data.status !== 'void' ? invoiceDetail.data : null;
+  const existingInvoiceId = liveInvoice?.id;
+
+  /**
+   * What is still owed. Null means "no invoice yet, so whatever the lines come
+   * to" — the payment sheet asks the server to price that, with the same
+   * function that will write the invoice, so the figure shown is the figure
+   * charged. Zero means settled.
+   */
+  const owing: number | null = liveInvoice ? liveInvoice.balance_due_pesewas : null;
+  const settled = owing !== null && owing <= 0;
+  const owesMoney = !settled && b.status !== 'cancelled';
 
   /**
    * The single next step in the job, and so the single green button.
    *
-   * Note that when the kit is out the step is "Record return" — the check-in
-   * that reconciles the deposit and records damage — and NOT the bare
-   * 'returned' status flip, which the transition table also offers. The flip
-   * is a shortcut that skips the money; it belongs in the menu, not under the
-   * cursor.
+   * Pay first. Small rentals do not want an invoice; they want the money taken
+   * and a receipt handed over, and the kit goes out the door. So while money is
+   * owed the step is Take payment — whatever the status. Once settled, the step
+   * is whatever the status needs next: Record return while the kit is out
+   * (the check-in that reconciles the deposit and records damage — NOT the bare
+   * 'returned' status flip, which skips the money and lives in the menu), or
+   * the receipt once it is back.
+   *
+   * Big jobs that want terms, deposits or stages take the long road — Create
+   * invoice is always one step down in the menu.
    */
   const nextStep: { label: string; run: () => void } | null = (() => {
+    if (b.status === 'cancelled') return null;
+    if (owesMoney && (b.status === 'out' || b.status === 'returned')) {
+      return { label: 'Take payment', run: () => setTakingPayment(true) };
+    }
     if (b.status === 'out') {
       return { label: 'Record return', run: () => navigate(`/returns/new/${b.id}`) };
     }
     if (b.status === 'returned') {
-      return existingInvoiceId
-        ? { label: 'View invoice', run: () => navigate(paths.invoices.detail(existingInvoiceId)) }
-        : { label: 'Generate invoice', run: () => navigate(paths.invoices.fromBooking(b.id)) };
+      return latestPayment
+        ? { label: 'Print receipt', run: () => { void printReceipt(latestPayment.id); } }
+        : null;
     }
     const forward = transitions.find((t) => t !== 'cancelled');
     if (forward) {
@@ -117,14 +155,20 @@ export default function BookingDetail(): JSX.Element {
             {labelForTransition(b.status, t)}
           </Dropdown.Item>
         ))}
-      {b.status !== 'returned' && (
-        existingInvoiceId
-          ? <Dropdown.Item onSelect={() => navigate(paths.invoices.detail(existingInvoiceId))}>View invoice</Dropdown.Item>
-          : <Dropdown.Item onSelect={() => navigate(paths.invoices.fromBooking(b.id))}>Generate invoice</Dropdown.Item>
+      {owesMoney && nextStep?.label !== 'Take payment' && (
+        <Dropdown.Item onSelect={() => setTakingPayment(true)}>Take payment</Dropdown.Item>
       )}
+      {b.status === 'out' && nextStep?.label !== 'Record return' && (
+        <Dropdown.Item onSelect={() => navigate(`/returns/new/${b.id}`)}>Record return</Dropdown.Item>
+      )}
+      {existingInvoiceId
+        ? <Dropdown.Item onSelect={() => navigate(paths.invoices.detail(existingInvoiceId))}>View invoice</Dropdown.Item>
+        : b.status !== 'cancelled' && (
+          <Dropdown.Item onSelect={() => navigate(paths.invoices.fromBooking(b.id))}>Create invoice</Dropdown.Item>
+        )}
       <Dropdown.Item onSelect={() => { void printContract(); }}>Print contract</Dropdown.Item>
       <Dropdown.Item onSelect={() => { void printTripSheet(); }}>Print trip sheet</Dropdown.Item>
-      {latestPayment && (
+      {latestPayment && nextStep?.label !== 'Print receipt' && (
         <Dropdown.Item onSelect={() => { void printReceipt(latestPayment.id); }}>Print receipt</Dropdown.Item>
       )}
       <Dropdown.Divider />
@@ -362,6 +406,23 @@ export default function BookingDetail(): JSX.Element {
           )}
         </div>
       </ActionBar>
+
+      <TakePaymentSheet
+        open={takingPayment}
+        bookingId={b.id}
+        owing={owing}
+        onClose={() => setTakingPayment(false)}
+        onTaken={(_invoiceId, paymentId) => {
+          setTakingPayment(false);
+          booking.refresh();
+          invoices.refresh();
+          invoiceDetail.refresh();
+          // Payment, then receipt — the exact order asked for. Print it straight
+          // away rather than making the person find the button; they are
+          // standing at the counter with the customer in front of them.
+          void printReceipt(paymentId);
+        }}
+      />
 
       <ConfirmModal
         open={confirmRemove}
