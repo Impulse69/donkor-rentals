@@ -2,6 +2,45 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.5.0-beta.5] - 2026-08-19 (BETA)
+
+### Fixed: the printed invoice and receipt were wrong in ways a customer would see
+
+An audit of the actual printed output - not the screen - found these, all now
+fixed and all now covered by tests that read the documents the way a customer
+would:
+
+- **Every part-paid invoice printed "Amount Paid 0.00" and the full total as the
+  balance.** A fully PAID invoice did too. The figures were never being read
+  from the payments. The 2,000 you took shows as 2,000, and the balance is what
+  is actually left.
+- **The payment history printed the word "undefined"** where the payment type
+  should be, and never showed the reference number. A refund would have printed
+  as money received.
+- **No line showed its days**, so quantity x price never equalled the amount:
+  "150 x 12.50 = 5,625.00" reads as a three-times overcharge until you know it
+  was three days. The days now print in the Specifications column, with the
+  vehicle registration, so the arithmetic reconciles on the page.
+- **The receipt said PAID on a part payment** - the status was fixed text. It
+  now says PART PAID or PAID as the case is, and shows this payment, paid to
+  date, and the balance remaining.
+- **The receipt showed no tax lines** - it jumped from subtotal straight to
+  total. NHIL, GETFund and VAT are now itemised, as a VAT receipt must.
+- **The invoice and receipt carried two different letterheads**, and the
+  receipt's contact details were placeholders that were never real. Both now
+  print the company name, address, phone and TIN from Settings - the details
+  the setup wizard asked you for. **Fill those in under Settings, or the
+  letterhead will show the name only.**
+- A credit (customer overpaid, or a settled statutory invoice printed in Simple
+  format) now says "Credit due to customer" instead of a blank 0.00.
+- Rental period added to the invoice; thousands separators throughout; the
+  receipt now uses the same currency label as the invoice.
+
+The invoice layout itself - columns, "Total" then taxes then "Total Amount",
+"GHC" - is unchanged: it matches the stationery samples supplied.
+
+---
+
 ## [1.5.0-beta.4] - 2026-08-19 (BETA)
 
 ### Take payment at the counter - no invoice screen
