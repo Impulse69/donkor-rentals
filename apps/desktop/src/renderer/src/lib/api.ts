@@ -103,8 +103,10 @@ export const api = {
   reports: {
     overview: () => unwrap(window.donkor.reports.overview()),
     utilization: (start: string, end: string) => unwrap(window.donkor.reports.utilization(start, end)),
-    topCustomers: (limit?: number) => unwrap(window.donkor.reports.topCustomers(limit)),
-    tripLog: (limit?: number) => unwrap(window.donkor.reports.tripLog(limit)),
+    topCustomers: (limit?: number, start?: string, end?: string) =>
+      unwrap(window.donkor.reports.topCustomers(limit, start, end)),
+    tripLog: (limit?: number, start?: string, end?: string) =>
+      unwrap(window.donkor.reports.tripLog(limit, start, end)),
     damageSummary: () => unwrap(window.donkor.reports.damageSummary()),
     exportCsv: () => unwrap(window.donkor.reports.exportCsv()),
     trialBalance: (asOf: string, start?: string) =>

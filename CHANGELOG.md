@@ -2,6 +2,31 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.3.10] - 2026-08-19
+
+### Fixed: booking and return lines showed a code instead of the item
+
+Booking lines and the return inspection checklist named each item with a
+fragment of its internal id - "a1b2c3d4" - so nobody could tell what was being
+collected or inspected. They now show the item's name.
+
+### Fixed: the Returns list went nowhere
+
+Every row on the Returns screen led to "Return already recorded" with no way
+through, because it pointed at the form for recording a *new* return. Rows now
+open the booking, where the charges, deposit and refund actually are.
+
+### Fixed: Top Customers and Trip Log ignored the date range
+
+Both screens offered a date range and then showed all-time figures regardless -
+so "This quarter" was a heading over numbers that had nothing to do with the
+quarter. They now report the period you pick.
+
+**Revenue** and **Open Invoices** no longer offer a date range at all: both
+always describe the current position, and the picker implied otherwise.
+
+---
+
 ## [1.3.9] — 2026-08-19
 
 ### Fixed: editing a booking erased the driver, pickup and drop-off

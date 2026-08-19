@@ -114,7 +114,25 @@ export function getUtilization(
   }));
 }
 
-export function getTopCustomers(db: Database, tenantId: string, limit = 10): TopCustomerRow[] {
+/**
+ * Highest-revenue customers, optionally within a period.
+ *
+ * The screen has always offered a date range for this. It was never passed
+ * through, so picking "This quarter" returned all-time figures under a heading
+ * that said otherwise — the kind of wrong that gets repeated to a client.
+ *
+ * "Revenue in the period" means cash actually received in it, and the booking
+ * count is scoped to bookings that start in it, so the two columns describe the
+ * same window.
+ */
+export function getTopCustomers(
+  db: Database,
+  tenantId: string,
+  limit = 10,
+  start?: string,
+  end?: string,
+): TopCustomerRow[] {
+  const ranged = Boolean(start && end);
   return db
     .prepare(
       `SELECT c.id AS customer_id, c.name AS customer_name,
@@ -122,17 +140,31 @@ export function getTopCustomers(db: Database, tenantId: string, limit = 10): Top
               COUNT(DISTINCT b.id) AS bookings
        FROM customers c
        JOIN bookings b ON b.customer_id = c.id AND b.deleted_at IS NULL
+         ${ranged ? 'AND date(b.starts_at) BETWEEN @start AND @end' : ''}
        LEFT JOIN invoices i ON i.booking_id = b.id AND i.deleted_at IS NULL
        LEFT JOIN payments p ON p.invoice_id = i.id AND p.deleted_at IS NULL
+         ${ranged ? 'AND date(p.paid_at) BETWEEN @start AND @end' : ''}
        WHERE c.tenant_id = @tenant_id AND c.deleted_at IS NULL
        GROUP BY c.id
        ORDER BY revenue_pesewas DESC, bookings DESC
        LIMIT @limit`,
     )
-    .all({ tenant_id: tenantId, limit }) as TopCustomerRow[];
+    .all(
+      ranged
+        ? { tenant_id: tenantId, limit, start, end }
+        : { tenant_id: tenantId, limit },
+    ) as TopCustomerRow[];
 }
 
-export function getTripLog(db: Database, tenantId: string, limit = 50): TripLogRow[] {
+/** Hearse trips, optionally limited to those starting inside a period. */
+export function getTripLog(
+  db: Database,
+  tenantId: string,
+  limit = 50,
+  start?: string,
+  end?: string,
+): TripLogRow[] {
+  const ranged = Boolean(start && end);
   return db
     .prepare(
       `SELECT b.id AS booking_id, COALESCE(c.name, b.renter_name, 'Walk-in rental') AS customer_name, b.starts_at, b.ends_at,
@@ -147,10 +179,15 @@ export function getTripLog(db: Database, tenantId: string, limit = 50): TripLogR
          AND bl.deleted_at IS NULL
          AND b.deleted_at IS NULL
          AND i.kind = 'hearse'
+         ${ranged ? 'AND date(b.starts_at) BETWEEN @start AND @end' : ''}
        ORDER BY b.starts_at DESC
        LIMIT @limit`,
     )
-    .all({ tenant_id: tenantId, limit }) as TripLogRow[];
+    .all(
+      ranged
+        ? { tenant_id: tenantId, limit, start, end }
+        : { tenant_id: tenantId, limit },
+    ) as TripLogRow[];
 }
 
 export function getDamageSummary(db: Database, tenantId: string): DamageSummaryRow[] {
