@@ -14,6 +14,14 @@ log.info('Donkor Rentals — main process starting');
 
 const isDev = !app.isPackaged;
 
+// Test hook: point userData somewhere else so two app instances can stand in
+// for two different machines (e.g. proving a backup made on one restores on
+// another). Must run before app.whenReady, since the database path derives from
+// userData. Ignored when the variable is unset, so real installs never see it.
+if (process.env['DONKOR_USERDATA_OVERRIDE']) {
+  app.setPath('userData', process.env['DONKOR_USERDATA_OVERRIDE']);
+}
+
 /** Page zoom applied on launch; Ctrl/Cmd +, - and 0 adjust and reset it. */
 const DEFAULT_ZOOM = 0.9;
 const ZOOM_STEP = 0.05;

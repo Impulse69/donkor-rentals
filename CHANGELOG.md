@@ -2,6 +2,23 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.3.7] — 2026-08-19
+
+### A backup is now one file you can share
+
+A backup used to be two files: the `.db` and a small `.json` beside it. Send
+someone just the `.db` — which is what everyone naturally does — and their
+machine said **"backup manifest missing"** and refused to restore it.
+
+The details that were in the `.json` now travel *inside* the `.db` itself. One
+file, self-contained. Email it, WhatsApp it, put it on a USB stick — it
+restores on any machine with the app.
+
+Older backups that still have the `.json` beside them keep working exactly as
+before.
+
+---
+
 ## [1.3.6] — 2026-08-18
 
 ### Fixed: clicking a Chart of Accounts row did nothing

@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -230,26 +230,70 @@ describe('restoreBackup', () => {
 
   it('refuses a backup built on a different schema version', async () => {
     const backup = await createBackup(backupDir);
-    const manifest = JSON.parse(readFileSync(backup.manifestPath, 'utf8')) as Record<string, unknown>;
-    manifest.schemaVersion = '0007_something_older';
-    writeFileSync(backup.manifestPath, JSON.stringify(manifest), 'utf8');
+    // The manifest is authoritative INSIDE the file now, so tamper with it there.
+    const db = new Database(backup.filePath);
+    const raw = JSON.parse((db.prepare('SELECT manifest_json FROM _backup_manifest').get() as { manifest_json: string }).manifest_json) as Record<string, unknown>;
+    raw.schemaVersion = '0007_something_older';
+    db.prepare('UPDATE _backup_manifest SET manifest_json = ?').run(JSON.stringify(raw));
+    db.close();
 
     await expect(restoreBackup(backup.filePath)).rejects.toThrow(/schema/i);
   });
 
-  it('refuses a manifest that describes a different file', async () => {
+  it('restores a backup shared as a single file, with no sidecar beside it', async () => {
+    // The field report: a colleague was sent the .db only and restore failed with
+    // "backup manifest missing". Backups are emailed, WhatsApped and copied to
+    // USB sticks, and only the .db travels. It has to be self-contained.
+    addCustomer('Ama');
     const backup = await createBackup(backupDir);
-    const manifest = JSON.parse(readFileSync(backup.manifestPath, 'utf8')) as Record<string, unknown>;
-    manifest.databaseFile = 'donkor-backup-somebody-elses.db';
-    writeFileSync(backup.manifestPath, JSON.stringify(manifest), 'utf8');
 
-    await expect(restoreBackup(backup.filePath)).rejects.toThrow(/does not match/i);
+    // Simulate sharing: move just the .db somewhere the .json is not.
+    const sharedDir = mkdtempSync(join(tmpdir(), 'donkor-shared-'));
+    const sharedPath = join(sharedDir, 'donkor-backup-from-a-friend.db');
+    copyFileSync(backup.filePath, sharedPath);
+    expect(existsSync(`${sharedPath}.json`)).toBe(false);
+
+    addCustomer('Kofi');
+    await restoreBackup(sharedPath);
+
+    expect(customerNames()).toEqual(['Ama']);
+    rmSync(sharedDir, { recursive: true, force: true });
   });
 
-  it('refuses a backup with no manifest at all', async () => {
+  it('still restores an older backup that only has the sidecar', async () => {
+    // Pre-1.3.7 backups wrote the manifest beside the file only. Anything
+    // already on a USB stick must keep working.
+    addCustomer('Ama');
     const backup = await createBackup(backupDir);
+    const db = new Database(backup.filePath);
+    db.exec('DROP TABLE _backup_manifest');
+    db.close();
+    expect(existsSync(backup.manifestPath)).toBe(true);
+
+    addCustomer('Kofi');
+    await restoreBackup(backup.filePath);
+    expect(customerNames()).toEqual(['Ama']);
+  });
+
+  it('does not carry the backup marker table into the live company file', async () => {
+    // The marker belongs to the backup. Left in place, the next backup of this
+    // file would inherit a stale manifest instead of writing a fresh one.
+    const backup = await createBackup(backupDir);
+    await restoreBackup(backup.filePath);
+
+    const live = new Database(dbPath(), { readonly: true });
+    const marker = live.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='_backup_manifest'").get();
+    live.close();
+    expect(marker).toBeUndefined();
+  });
+
+  it('refuses a file that is not a Donkor backup at all', async () => {
+    const backup = await createBackup(backupDir);
+    const db = new Database(backup.filePath);
+    db.exec('DROP TABLE _backup_manifest');
+    db.close();
     rmSync(backup.manifestPath);
 
-    await expect(restoreBackup(backup.filePath)).rejects.toThrow(/manifest missing/i);
+    await expect(restoreBackup(backup.filePath)).rejects.toThrow(/not a Donkor backup/i);
   });
 });
