@@ -192,3 +192,63 @@ test('clearing a date does not take the booking form down', async () => {
   await expect(win.locator('.error-boundary')).toHaveCount(0);
   await expect(save).toBeEnabled();
 });
+
+test('editing a booking keeps the driver even after the hearse is retired', async () => {
+  // Regression: the payload nulled pickup/drop-off/driver whenever no line
+  // resolved to a hearse in the ACTIVE catalogue. A retired hearse never
+  // resolves, so opening an old funeral booking to change a date and pressing
+  // Save silently erased who was driving and where they were collecting from.
+  const bookingId = await win.evaluate(async () => {
+    type Envelope = { ok: boolean; data?: { id: string }; error?: { message?: string } };
+    type Api = Record<string, Record<string, (...args: unknown[]) => Promise<Envelope>>>;
+    const api = (window as unknown as { donkor: Api }).donkor;
+    // Surface the envelope's error rather than failing on `undefined.id`, which
+    // says nothing about what actually went wrong.
+    const must = (r: Envelope, what: string): { id: string } => {
+      if (!r.ok || !r.data) throw new Error(`${what} failed: ${r.error?.message ?? 'unknown'}`);
+      return r.data;
+    };
+    const item = await api.catalog.create({
+      kind: 'hearse', sku: 'HRS-RETIRE-1', name: 'Old Mercedes hearse', description: null,
+      daily_rate_pesewas: 50000, replacement_value_pesewas: 9000000, total_quantity: 1, status: 'active',
+    });
+    const itemId = must(item, 'catalog.create').id;
+    const booking = await api.bookings.create({
+      customer_id: null, renter_name: 'Mensah family', renter_phone: null,
+      starts_at: '2027-05-01T08:00:00.000Z', ends_at: '2027-05-02T08:00:00.000Z',
+      pickup_location: 'Tema Community 1', dropoff_location: 'Osu Cemetery',
+      driver_name: 'Kwame Asante', notes: null,
+      lines: [{
+        item_id: itemId, item_unit_id: null, quantity: 1, daily_rate_pesewas: 50000, notes: null,
+        odometer_start_km: null, odometer_end_km: null, fuel_litres_start: null, fuel_litres_end: null,
+      }],
+    });
+    // The vehicle is sold off and retired from the catalogue.
+    must(await api.catalog.update(itemId, { status: 'retired' }), 'catalog.update');
+    return must(booking, 'bookings.create').id;
+  });
+
+  await win.evaluate(() => { window.location.hash = '#/'; });
+  await expect(win.locator('h1.page-title')).toBeVisible();
+  await win.evaluate((id) => { window.location.hash = `#/bookings/${id}/edit`; }, bookingId);
+  await expect(win.locator('h1.page-title')).toBeVisible();
+
+  // The driver is still on screen, not hidden behind a retired-item check.
+  await expect(win.getByLabel('Driver')).toHaveValue('Kwame Asante');
+
+  const save = win.getByRole('button', { name: /Reserved|Save|Quote|Update/ }).last();
+  await expect(save).toBeEnabled();
+  await save.click();
+
+  const after = await win.evaluate(async (id) => {
+    type Booking = { driver_name: string | null; pickup_location: string | null; dropoff_location: string | null };
+    type Api = { bookings: { get: (id: string) => Promise<{ ok: boolean; data: Booking }> } };
+    const api = (window as unknown as { donkor: Api }).donkor;
+    const r = await api.bookings.get(id);
+    return { driver: r.data.driver_name, pickup: r.data.pickup_location, dropoff: r.data.dropoff_location };
+  }, bookingId);
+
+  expect(after.driver).toBe('Kwame Asante');
+  expect(after.pickup).toBe('Tema Community 1');
+  expect(after.dropoff).toBe('Osu Cemetery');
+});

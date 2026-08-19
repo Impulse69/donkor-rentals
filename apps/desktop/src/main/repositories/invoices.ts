@@ -434,7 +434,11 @@ export function updateInvoice(
   // Status moves with side-effects.
   let issued_at = existing.issued_at;
   if (patch.status && patch.status !== existing.status) {
-    if (patch.status === 'issued' && !issued_at) issued_at = nowIso();
+    // A draft covered in full by a deposit has a zero balance, so it slipped
+    // past the guard below and went straight to paid — never passing through
+    // 'issued', and so never posting its revenue or its statutory tax. Leaving
+    // the draft is what makes an invoice real, whichever status it lands in.
+    if ((patch.status === 'issued' || patch.status === 'paid') && !issued_at) issued_at = nowIso();
     if (patch.status === 'paid' && existing.balance_due_pesewas > 0) {
       throw new Error('Cannot mark paid: balance is still outstanding');
     }
@@ -481,7 +485,7 @@ export function updateInvoice(
     });
     const current = getInvoice(db, tenantId, id);
     if (!current) throw new Error('updateInvoice: readback failed');
-    if (patch.status === 'issued' && existing.status === 'draft') {
+    if ((patch.status === 'issued' || patch.status === 'paid') && existing.status === 'draft') {
       postInvoiceIssued(db, tenantId, current);
     }
     if (patch.status === 'void' && existing.status !== 'void') {
@@ -618,8 +622,10 @@ export function recordPayment(
       postOnce(db, tenantId, buildRefundedEntry({
         entry_date: toEntryDate(input.paid_at),
         payment_id: id,
+        invoice_is_draft: snap.status === 'draft',
         cash_account_id: resolveCashAccount(db, tenantId, input.method),
         ar_account_id: resolveAccount(db, tenantId, 'ar'),
+        customer_deposits_account_id: resolveAccount(db, tenantId, 'customer_deposits'),
         amount_pesewas: input.amount_pesewas,
         customer_id,
       }));

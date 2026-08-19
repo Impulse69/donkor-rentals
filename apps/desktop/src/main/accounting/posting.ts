@@ -201,10 +201,21 @@ export function buildPaymentReceivedEntry(input: {
  * negative. That is a data-quality signal, and `health.ts#depositsNeverNegative`
  * reports it rather than the ledger hiding it.
  */
+/**
+ * Giving money back has to come out of wherever it was put. A deposit taken
+ * against a draft is credited to Customer Deposits Held, not to receivables —
+ * see buildDepositReceivedEntry — so refunding it has to debit that same
+ * liability. Always debiting A/R invented a receivable against an invoice the
+ * sub-ledger does not even count, and left the returned cash sitting in the
+ * deposit liability for ever.
+ */
 export function buildRefundedEntry(input: {
   entry_date: string;
   payment_id: string;
+  /** A draft has no receivable yet; the money is being held, not owed. */
+  invoice_is_draft: boolean;
   ar_account_id: string;
+  customer_deposits_account_id: string;
   cash_account_id: string;
   amount_pesewas: number;
   customer_id?: string | null;
@@ -218,7 +229,9 @@ export function buildRefundedEntry(input: {
     source_event: 'refunded',
     lines: [
       line({
-        account_id: input.ar_account_id,
+        account_id: input.invoice_is_draft
+          ? input.customer_deposits_account_id
+          : input.ar_account_id,
         debit_pesewas: input.amount_pesewas,
         credit_pesewas: 0,
         customer_id: input.customer_id ?? null,

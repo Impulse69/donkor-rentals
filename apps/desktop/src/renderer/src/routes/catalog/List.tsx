@@ -98,7 +98,7 @@ export default function CatalogList(): JSX.Element {
         </select>
         <Button type="submit">Apply</Button>
         {(search || kind !== 'all' || status !== 'all') && (
-          <Button variant="ghost" type="button" onClick={() => setSearchParams({}, { replace: true })}>
+          <Button variant="ghost" type="button" onClick={() => { setDraft(''); setSearchParams({}, { replace: true }); }}>
             Clear
           </Button>
         )}

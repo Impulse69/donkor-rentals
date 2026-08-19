@@ -113,7 +113,14 @@ export default function BookingForm(): JSX.Element {
     if (items.status !== 'ok') return new Map<string, Item>();
     return new Map(items.data.map((i) => [i.id, i]));
   }, [items]);
-  const hasHearseLine = lines.some((l) => itemsById.get(l.item_id)?.kind === 'hearse');
+  // Whether to SHOW the hearse fields. `itemsById` is empty until the catalogue
+  // request lands, and a retired hearse never appears in it at all — so this
+  // flag alone must never decide what gets SAVED (see the submit payload).
+  // Keep the fields visible whenever the booking already carries any of these
+  // values, or editing an old hearse booking would hide its own driver.
+  const hasHearseLine =
+    lines.some((l) => itemsById.get(l.item_id)?.kind === 'hearse') ||
+    Boolean(pickup || dropoff || driver);
   const subtotal = lines.reduce((sum, l) => sum + l.daily_rate_pesewas * l.quantity * days, 0);
 
   const [conflicts, setConflicts] = useState<ConflictReport[] | null>(null);
@@ -200,9 +207,14 @@ export default function BookingForm(): JSX.Element {
         renter_phone: submitRenterPhone,
         starts_at: startsIso,
         ends_at: endsIso,
-        pickup_location: hasHearseLine ? pickup || null : null,
-        dropoff_location: hasHearseLine ? dropoff || null : null,
-        driver_name: hasHearseLine ? driver || null : null,
+        // Save what is in the form, never what a derived flag thinks should be
+        // in it. These were nulled whenever `hasHearseLine` was false — which
+        // includes the moment before the catalogue has loaded and for ever
+        // after the hearse is retired. Opening an old booking to change a date
+        // and pressing Save silently erased the driver, pickup and drop-off.
+        pickup_location: pickup || null,
+        dropoff_location: dropoff || null,
+        driver_name: driver || null,
         notes: notes || null,
       };
 

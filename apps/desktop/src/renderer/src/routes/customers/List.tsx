@@ -52,7 +52,7 @@ export default function CustomersList(): JSX.Element {
         />
         <Button type="submit">Apply</Button>
         {search && (
-          <Button variant="ghost" type="button" onClick={() => setQ('')}>Clear</Button>
+          <Button variant="ghost" type="button" onClick={() => { setDraft(''); setQ(''); }}>Clear</Button>
         )}
       </form>
 

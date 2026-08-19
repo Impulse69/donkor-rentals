@@ -2,6 +2,38 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.3.9] — 2026-08-19
+
+### Fixed: editing a booking erased the driver, pickup and drop-off
+
+Opening an existing hearse booking to change something small — a date, a note —
+and pressing Save wiped the driver's name, the pickup point and the drop-off
+point. It happened whenever the vehicle had since been retired from the
+catalogue, and could also happen on any booking saved before the item list had
+finished loading.
+
+### Fixed: an invoice paid straight from draft recorded no income
+
+If a deposit covered the whole invoice, marking it Paid skipped the step that
+records the sale. The invoice showed as paid while the books showed no income
+and no VAT owed — so both the Profit and Loss and the Taxes page understated
+the truth.
+
+### Fixed: refunding a deposit before the invoice was issued
+
+The refund was taken out of "money customers owe you" instead of out of the
+deposit being returned. That invented a receivable that did not exist and left
+the deposit sitting on the books as though it were still held.
+
+### Smaller fixes
+
+- **Clear** on the Customers, Products and Vendors lists now empties the search
+  box, instead of resetting the results while leaving the old text behind.
+- The bill payment window no longer opens pre-filled with the last bill's
+  amount and reference.
+
+---
+
 ## [1.3.8] — 2026-08-19
 
 ### Fixed: quantity and amount boxes could not be edited
