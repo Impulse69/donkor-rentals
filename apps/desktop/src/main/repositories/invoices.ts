@@ -77,6 +77,22 @@ function nextInvoiceNumber(db: Database, tenantId: string): string {
   return `INV-${String(row.used).padStart(6, '0')}`;
 }
 
+/**
+ * A discount cannot exceed what is being discounted.
+ *
+ * Creation clamped the stored total at zero while assertInvoiceTotals insisted
+ * total === subtotal + levies - discount, so an over-large discount produced an
+ * invoice that saved happily and then refused to issue for ever, with an error
+ * blaming the totals rather than the discount. Catch it where it is entered.
+ */
+function assertDiscountFits(discount: number, totalInclusive: number): void {
+  if (discount > totalInclusive) {
+    throw new Error(
+      `Discount of ${formatMoney(discount)} is more than the ${formatMoney(totalInclusive)} being invoiced.`,
+    );
+  }
+}
+
 function assertInvoiceTotals(invoice: InvoiceWithLines): void {
   const lineTotal = invoice.lines.reduce((sum, line) => sum + line.line_total_pesewas, 0);
   if (invoice.subtotal_pesewas !== lineTotal) {
@@ -350,7 +366,8 @@ export function createInvoiceFromBooking(
   const breakdown = includeStatutory
     ? computeStatutoryTaxes(subtotal)
     : { nhil: 0, getfund: 0, vat: 0, total_inclusive: subtotal };
-  const total = Math.max(0, breakdown.total_inclusive - discount);
+  assertDiscountFits(discount, breakdown.total_inclusive);
+  const total = breakdown.total_inclusive - discount;
 
   const id = uuidv4();
   const now = nowIso();
@@ -452,7 +469,8 @@ export function updateInvoice(
   const breakdown = includeStatutory
     ? computeStatutoryTaxes(existing.subtotal_pesewas)
     : { nhil: 0, getfund: 0, vat: 0, total_inclusive: existing.subtotal_pesewas };
-  const total = Math.max(0, breakdown.total_inclusive - discount);
+  assertDiscountFits(discount, breakdown.total_inclusive);
+  const total = breakdown.total_inclusive - discount;
 
   const tx = db.transaction(() => {
     const updatedAt = nowIso();
@@ -662,10 +680,33 @@ export function voidPayment(
   let invoiceId = '';
   const tx = db.transaction(() => {
     const row = db
-      .prepare(`SELECT invoice_id FROM payments WHERE id = @id AND tenant_id = @tenant_id AND deleted_at IS NULL`)
-      .get({ id: paymentId, tenant_id: tenantId }) as { invoice_id: string } | undefined;
+      .prepare(`SELECT invoice_id, kind FROM payments WHERE id = @id AND tenant_id = @tenant_id AND deleted_at IS NULL`)
+      .get({ id: paymentId, tenant_id: tenantId }) as { invoice_id: string; kind: string } | undefined;
     if (!row) throw new Error('voidPayment: payment not found');
     invoiceId = row.invoice_id;
+
+    // Issuing an invoice posts a second, linked entry that moves every deposit
+    // held against it out of Customer Deposits Held and into receivables. The
+    // reversal below only ever finds the entry filed against the payment
+    // itself, so voiding an already-applied deposit left that transfer
+    // standing: the deposit liability went negative and A/R was understated by
+    // the same amount. Refund it instead, exactly as voiding a paid invoice
+    // requires.
+    if (row.kind === 'deposit') {
+      const applied = db
+        .prepare(
+          `SELECT id FROM journal_entries
+           WHERE tenant_id = @tenant_id AND source_type = 'invoice' AND source_id = @invoice_id
+             AND source_event = 'deposit_applied' AND reversed_by_id IS NULL
+           LIMIT 1`,
+        )
+        .get({ tenant_id: tenantId, invoice_id: row.invoice_id }) as { id: string } | undefined;
+      if (applied) {
+        throw new Error(
+          'This deposit has already been applied to an issued invoice. Record a refund against the invoice instead of voiding the deposit.',
+        );
+      }
+    }
     const t = nowIso();
     const entry = db
       .prepare(

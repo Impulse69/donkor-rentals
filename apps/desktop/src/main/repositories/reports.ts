@@ -88,7 +88,12 @@ export function getUtilization(
     .prepare(
       `SELECT i.id AS item_id, i.name AS item_name, i.kind, i.total_quantity,
               COALESCE(SUM(
-                bl.quantity * MAX(1, CAST(julianday(MIN(b.ends_at, @end)) - julianday(MAX(b.starts_at, @start)) AS INTEGER))
+                -- CEIL, not CAST. CAST truncates toward zero, so a booking
+                -- spanning 1.96 days counted as 1 while the invoice charged 2
+                -- (see daysBetween in invoices.ts, which ceils). Utilisation and
+                -- revenue have to describe the same rental, or every part-day
+                -- hire is under-reported by exactly one day.
+                bl.quantity * MAX(1, CEIL(julianday(MIN(b.ends_at, @end)) - julianday(MAX(b.starts_at, @start))))
               ), 0) AS booked_quantity_days
        FROM items i
        LEFT JOIN booking_lines bl ON bl.item_id = i.id AND bl.deleted_at IS NULL
