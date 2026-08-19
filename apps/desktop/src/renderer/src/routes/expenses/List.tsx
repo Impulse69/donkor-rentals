@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AsyncList } from '../../components/AsyncList';
 import { Button, SplitButton } from '../../components/Button';
@@ -92,13 +92,22 @@ export default function ExpensesList(): JSX.Element {
     }
   }
 
+  // Voiding posts a reversing journal entry. Firing it twice would post two,
+  // so refuse a second call while the first is still in flight — the menu item
+  // that triggers this carries no disabled state of its own.
+  const voidingRef = useRef<string | null>(null);
+
   async function voidExpense(id: string): Promise<void> {
+    if (voidingRef.current === id) return;
+    voidingRef.current = id;
     try {
       await api.expenses.void(id);
       toast.ok('Expense voided by reversal');
       expenses.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not void expense');
+    } finally {
+      voidingRef.current = null;
     }
   }
 

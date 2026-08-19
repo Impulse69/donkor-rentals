@@ -2,6 +2,32 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.3.12] - 2026-08-19
+
+### Fixed: date filters could not be cleared
+
+On Journal Entries, clearing a date filter to retype it made the field jump
+straight back to the start of the month. On an account register it was worse —
+clearing the date replaced the page with an error. Both can now be cleared and
+retyped normally.
+
+### Fixed: "today" meant different things in different places
+
+Three parts of the app worked out today's date separately, and two of them used
+UTC rather than your local time. In Ghana those are the same, so nothing showed;
+on a machine set to any other timezone an expense dated "today" could be filed
+to the wrong day, into the wrong month for VAT, or into a period already closed.
+There is now one definition, used everywhere.
+
+### Fixed: a double-click could act twice
+
+The confirm button on "Remove this booking" stayed live while the request was in
+flight, so an impatient double-click sent it twice. The same omission on
+"Void by reversal" would have posted the reversal twice, which is the version
+that would actually have damaged the books. Both now refuse the second click.
+
+---
+
 ## [1.3.11] - 2026-08-19
 
 ### Fixed: bills could be overpaid, and paid bills could be voided

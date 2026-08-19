@@ -1,8 +1,8 @@
 import type { Account, Vendor } from '@shared/schemas';
 
-export function todayInput(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+// Re-exported rather than redefined: this used to be a UTC copy that disagreed
+// with the rest of the app for part of every day outside UTC+0.
+export { todayInput } from '../../lib/dates';
 
 export function dateInputToIso(date: string): string {
   return `${date}T00:00:00.000Z`;

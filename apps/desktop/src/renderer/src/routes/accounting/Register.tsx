@@ -12,8 +12,13 @@ import { monthStartInput, todayInput } from './helpers';
 export default function AccountRegister(): JSX.Element {
   const { id = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const start = searchParams.get('start') ?? monthStartInput();
-  const end = searchParams.get('end') ?? todayInput();
+  // As in JournalList: show what was typed, query with something valid. Here an
+  // emptied field previously reached the query as "", which the IPC layer
+  // rejects outright — so clearing a date replaced the register with an error.
+  const startInput = searchParams.get('start') ?? monthStartInput();
+  const endInput = searchParams.get('end') ?? todayInput();
+  const start = startInput || monthStartInput();
+  const end = endInput || todayInput();
   const account = useAsync(() => api.accounts.get(id), [id]);
   const ledger = useAsync(() => api.reports.generalLedger(start, end, id), [start, end, id]);
 
@@ -47,8 +52,8 @@ export default function AccountRegister(): JSX.Element {
       </header>
 
       <div className="dtable-toolbar">
-        <input className="input" type="date" value={start} onChange={(e) => setRange('start', e.target.value)} aria-label="Start date" />
-        <input className="input" type="date" value={end} onChange={(e) => setRange('end', e.target.value)} aria-label="End date" />
+        <input className="input" type="date" value={startInput} onChange={(e) => setRange('start', e.target.value)} aria-label="Start date" />
+        <input className="input" type="date" value={endInput} onChange={(e) => setRange('end', e.target.value)} aria-label="End date" />
       </div>
 
       <AsyncList state={ledger} loadingLabel="Loading register..." emptyTitle="No register activity">

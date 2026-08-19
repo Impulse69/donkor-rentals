@@ -1,10 +1,10 @@
-# Donkor & Sons — Rental Management Software (v1.3.11)
+# Donkor & Sons — Rental Management Software (v1.3.12)
 
 Desktop rental management software designed for **Donkor & Sons (Ghana)**. This high-fidelity offline-first application automates and coordinates **event/party supplies rentals** (tents/canopies, chairs, sofas, tables, sound, lighting, decor) and **hearse fleet scheduling** for premium funeral services.
 
 ---
 
-## 🚀 Application Status: v1.3.11 (Production Ready)
+## 🚀 Application Status: v1.3.12 (Production Ready)
 
 The application has evolved past initial scaffold phases into a fully functional, robust offline desktop suite with local backup and GitHub-based app updates.
 

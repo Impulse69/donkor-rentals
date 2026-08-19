@@ -48,6 +48,22 @@ export function localTimeInput(iso: string): string {
 }
 
 /** Today as YYYY-MM-DD in local time. */
+/**
+ * Today, as the person sitting in front of the machine understands it.
+ *
+ * There were three copies of this: this one, and two more in route helpers that
+ * used `new Date().toISOString().slice(0, 10)` — which is today in UTC, not
+ * today here. In Ghana (UTC+0) they agree, so it never showed; anywhere else
+ * they disagree for part of every day, and an expense dated "today" could be
+ * filed to the wrong day, the wrong month for VAT, or into a period that has
+ * already been closed. One definition, exported, used everywhere.
+ */
 export function todayInput(): string {
   return localDateInput(new Date().toISOString());
+}
+
+/** The first of the current month, in local time for the same reason. */
+export function monthStartInput(): string {
+  const d = new Date();
+  return localDateInput(new Date(d.getFullYear(), d.getMonth(), 1).toISOString());
 }
