@@ -145,7 +145,9 @@ export const routes: RouteDef[] = [
     path: '/expenses/vendors',
     element: Vendors.List,
     crumb: 'Vendors',
-    nav: { label: 'Vendors', icon: 'vendors', section: 'EXPENSES' },
+    // Pulled from the sidebar for now: a vendor is only a payee label on an
+    // expense, and as a top-level tab it read as a feature without a purpose.
+    // Routes stay reachable so the Payee picker and any saved links still work.
   },
   { path: '/expenses/vendors/new', element: Vendors.Form, crumb: 'New vendor' },
   { path: '/expenses/vendors/:id', element: Vendors.Detail, crumb: 'Vendor' },
