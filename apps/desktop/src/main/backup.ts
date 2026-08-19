@@ -110,14 +110,47 @@ export function lastBackupAt(): string | null {
   return readSetting(getDb(), BACKUP_AT_KEY);
 }
 
+/**
+ * The manifest lives INSIDE the backup file, in a one-row `_backup_manifest`
+ * table. A backup is something people email, WhatsApp, or copy to a USB stick,
+ * and a two-file backup fails the moment only the .db travels. That is exactly
+ * what happened in the field: "backup manifest missing" on a colleague's
+ * machine, because the .db.json sidecar stayed behind. SQLite can carry its own
+ * metadata, so make it.
+ *
+ * Older backups (pre-1.3.7) only wrote the sidecar, so it is still honoured as a
+ * fallback. Nothing already sitting on a USB stick stops restoring.
+ */
 function readManifest(filePath: string): BackupManifest {
-  const manifestPath = manifestPathFor(filePath);
-  if (!existsSync(manifestPath)) throw new Error(`Backup manifest missing: ${manifestPath}`);
-  const raw = JSON.parse(readFileSync(manifestPath, 'utf8')) as BackupManifest;
-  if (raw.databaseFile !== basename(filePath)) {
-    throw new Error('Backup manifest does not match the selected database file');
+  const probe = new DatabaseCtor(filePath, { readonly: true, fileMustExist: true });
+  try {
+    const hasTable = probe
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_backup_manifest'")
+      .get();
+    if (hasTable) {
+      const row = probe.prepare('SELECT manifest_json FROM _backup_manifest LIMIT 1').get() as
+        | { manifest_json: string }
+        | undefined;
+      if (row) return JSON.parse(row.manifest_json) as BackupManifest;
+    }
+  } finally {
+    probe.close();
   }
-  return raw;
+
+  // Legacy: sidecar beside the file.
+  const manifestPath = manifestPathFor(filePath);
+  if (existsSync(manifestPath)) {
+    const raw = JSON.parse(readFileSync(manifestPath, 'utf8')) as BackupManifest;
+    if (raw.databaseFile !== basename(filePath)) {
+      throw new Error('Backup manifest does not match the selected database file');
+    }
+    return raw;
+  }
+
+  throw new Error(
+    'This file is not a Donkor backup: no manifest found inside it or beside it. ' +
+      'Make sure you are choosing a file created by "Back up company file".',
+  );
 }
 
 export async function chooseAndCreateBackup(): Promise<BackupResult | null> {
@@ -141,6 +174,17 @@ export async function createBackup(targetDir: string): Promise<BackupResult> {
     databaseFile: basename(filePath),
     rowCounts: rowCounts(db),
   };
+  // Embed the manifest in the backup itself so the single .db is self-contained.
+  const copy = new DatabaseCtor(filePath);
+  try {
+    copy.exec('CREATE TABLE IF NOT EXISTS _backup_manifest (manifest_json TEXT NOT NULL)');
+    copy.exec('DELETE FROM _backup_manifest');
+    copy.prepare('INSERT INTO _backup_manifest (manifest_json) VALUES (?)').run(JSON.stringify(manifest));
+  } finally {
+    copy.close();
+  }
+
+  // The sidecar stays as a human-readable companion, but nothing depends on it.
   const manifestPath = manifestPathFor(filePath);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
   rememberBackupLocation(db, targetDir, manifest.createdAt);
@@ -191,6 +235,17 @@ export async function restoreBackup(filePath: string): Promise<{ restored: true;
     rmSync(`${currentPath}${suffix}`, { force: true });
   }
   copyFileSync(filePath, currentPath);
+
+  // The marker table belongs to the backup, not to a live company file. Drop it
+  // so the restored database is indistinguishable from one that was never backed
+  // up, and so backing THIS one up later writes a fresh manifest rather than
+  // inheriting a stale one.
+  const restored = new DatabaseCtor(currentPath);
+  try {
+    restored.exec('DROP TABLE IF EXISTS _backup_manifest');
+  } finally {
+    restored.close();
+  }
 
   log.info(`restored backup ${filePath}; previous database saved to ${preRestorePath}`);
   app.relaunch();
