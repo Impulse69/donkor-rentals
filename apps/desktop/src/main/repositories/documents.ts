@@ -1,6 +1,7 @@
 import type { Database } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import { LOGO_DATA_URI } from '../assets/logoDataUri';
+import { getCompanyProfile } from './company';
 
 export interface ArchivedDocument {
   id: string;
@@ -37,6 +38,7 @@ export function generateContract(db: Database, tenantId: string, bookingId: stri
 
   const html = renderHtmlDocument({
     docType: 'CONTRACT',
+    company: readLetterhead(db),
     docNumber: booking.id.slice(0, 8).toUpperCase(),
     docDate: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
     customerName: booking.customer_name,
@@ -71,6 +73,7 @@ export function generateTripSheet(db: Database, tenantId: string, bookingId: str
 
   const html = renderHtmlDocument({
     docType: 'TRIP SHEET',
+    company: readLetterhead(db),
     docNumber: booking.id.slice(0, 8).toUpperCase(),
     docDate: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
     customerName: booking.customer_name,
@@ -153,6 +156,35 @@ export function applyStatutoryOverride(
   };
 }
 
+/**
+ * What prints at the top of every document. Read from the company profile the
+ * setup wizard captures — the one place the business says who it is. Both the
+ * invoice and the receipt used to hardcode their own letterhead, and they did
+ * not even agree with each other: the receipt carried placeholder contact
+ * details that were never real.
+ */
+export interface Letterhead {
+  name: string;
+  address: string | null;
+  phone: string | null;
+  tin: string | null;
+}
+
+function readLetterhead(db: Database): Letterhead {
+  const profile = getCompanyProfile(db);
+  return {
+    name: profile?.name ?? 'Donkor & Sons',
+    address: profile?.address ?? null,
+    phone: profile?.phone ?? null,
+    tin: profile?.tin ?? null,
+  };
+}
+
+/** Money on paper: thousands separators, two decimals. */
+function fmtMoneyDoc(pesewas: number): string {
+  return (pesewas / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export interface InvoiceTemplateData {
   number: string;
   status: string;
@@ -172,9 +204,13 @@ export interface InvoiceTemplateData {
   lines: Array<{
     description: string;
     quantity: number;
+    days: number;
     unit_price_pesewas: number;
     line_total_pesewas: number;
   }>;
+  booking_starts_at?: string;
+  booking_ends_at?: string;
+  company: Letterhead;
   // Payment ledger — printed under "Total Amount" so the client sees every
   // installment with its date/method/reference, plus the running balance.
   payments?: Array<{
@@ -194,24 +230,32 @@ export interface InvoiceTemplateData {
  */
 export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
   const escape = escapeHtml;
-  const fmtMoney = (p: number): string => (p / 100).toFixed(2);
+  const fmtMoney = fmtMoneyDoc;
   const fmtDate = (iso: string | null | undefined): string =>
     iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
   const issuedDate = fmtDate(invoice.issued_at ?? new Date().toISOString());
   const dueDate = fmtDate(invoice.due_at);
+  const rentalPeriod = invoice.booking_starts_at && invoice.booking_ends_at
+    ? `${fmtDate(invoice.booking_starts_at)} – ${fmtDate(invoice.booking_ends_at)}`
+    : null;
 
+  // Amount = qty x unit price x days. The days were not printed anywhere, so
+  // every line read as an overcharge: "3 x 60.00 = 540.00" is only true over
+  // three days. The Specifications column — always blank, because descriptions
+  // never carry a second line — is exactly where that belongs, alongside the
+  // vehicle identifier, which the description was carrying after a " · ".
   const rowsHtml = invoice.lines.map((l, idx) => {
-    const lines = String(l.description).split('\n').map((s) => s.trim()).filter(Boolean);
-    const primary = lines[0] ?? '';
-    const specs = lines.slice(1).join(', ');
+    const [primary, ...detail] = String(l.description).split(' · ').map((s) => s.trim());
+    const days = Number(l.days) || 1;
+    const specs = [...detail, `${days} day${days === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
     return `
       <tr>
         <td class="num">${idx + 1}</td>
-        <td class="desc">${escape(primary)}</td>
+        <td class="desc">${escape(primary ?? '')}</td>
         <td class="specs">${escape(specs)}</td>
         <td class="num">${l.quantity}</td>
         <td class="num">GHC ${fmtMoney(l.unit_price_pesewas)}</td>
-        <td class="num">GHC ${fmtMoney(l.line_total_pesewas * 1)}</td>
+        <td class="num">GHC ${fmtMoney(l.line_total_pesewas)}</td>
       </tr>`;
   }).join('');
 
@@ -265,7 +309,12 @@ export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
     <tr class="ledger-header"><td class="lbl" colspan="2">Payment history</td></tr>
     ${paymentHistoryRows}
     <tr class="paid"><td class="lbl">Amount Paid</td><td class="amt">GHC ${fmtMoney(amountPaid)}</td></tr>
-    <tr class="balance"><td class="lbl">Balance</td><td class="amt">GHC ${fmtMoney(Math.max(0, balance))}</td></tr>
+    ${balance < 0
+      // Clamping to zero hid a credit. If the customer has overpaid, or a
+      // statutory invoice is printed in Simple format after being settled, the
+      // document has to say that money is owed back, not show a blank 0.00.
+      ? `<tr class="balance"><td class="lbl">Credit due to customer</td><td class="amt">GHC ${fmtMoney(-balance)}</td></tr>`
+      : `<tr class="balance"><td class="lbl">Balance</td><td class="amt">GHC ${fmtMoney(balance)}</td></tr>`}
   `;
 
   return `<!doctype html>
@@ -493,18 +542,16 @@ export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
   <div class="sheet">
     <div class="letterhead">
       <div class="brand">
-        <img class="logo" src="${LOGO_DATA_URI}" alt="Donkor & Sons" />
+        <img class="logo" src="${LOGO_DATA_URI}" alt="${escape(invoice.company.name)}" />
         <div class="firm">
-          <h1>Donkor and Sons Ltd.</h1>
-          <p>P. O. Box 92 Agona Swedru, Central Region</p>
-          <p>Ghana</p>
+          <h1>${escape(invoice.company.name)}</h1>
+          ${(invoice.company.address ?? '').split('\n').map((ln) => ln.trim()).filter(Boolean).map((ln) => `<p>${escape(ln)}</p>`).join('')}
         </div>
       </div>
       <div class="contact">
         <table>
-          <tr><td class="k">Web:</td><td class="v">www.donkorandsons.com</td></tr>
-          <tr><td class="k">Email:</td><td class="v">info@donkorandsons.com</td></tr>
-          <tr><td class="k">Mob. :</td><td class="v">0203915510 / 0243079555</td></tr>
+          ${invoice.company.phone ? `<tr><td class="k">Mob. :</td><td class="v">${escape(invoice.company.phone)}</td></tr>` : ''}
+          ${invoice.company.tin ? `<tr><td class="k">TIN:</td><td class="v">${escape(invoice.company.tin)}</td></tr>` : ''}
         </table>
       </div>
     </div>
@@ -521,6 +568,7 @@ export function renderInvoiceHtml(invoice: InvoiceTemplateData): string {
           <tr><td class="k">Invoice No.</td><td class="v">${escape(invoice.number)}</td></tr>
           <tr><td class="k">Date</td><td class="v">${escape(issuedDate)}</td></tr>
           <tr><td class="k">Due Date</td><td class="v">${escape(dueDate)}</td></tr>
+          ${rentalPeriod ? `<tr><td class="k">Rental</td><td class="v">${escape(rentalPeriod)}</td></tr>` : ''}
           <tr><td class="k">Currency</td><td class="v">GHC</td></tr>
         </table>
       </div>
@@ -601,32 +649,50 @@ export function generateReceipt(db: Database, tenantId: string, paymentId: strin
     String(l.description),
     String(l.quantity),
     String(l.days),
-    `GHS ${(Number(l.unit_price_pesewas) / 100).toFixed(2)}`,
-    `GHS ${(Number(l.line_total_pesewas) / 100).toFixed(2)}`
+    `GHC ${fmtMoneyDoc(Number(l.unit_price_pesewas))}`,
+    `GHC ${fmtMoneyDoc(Number(l.line_total_pesewas))}`,
   ]);
 
   const paymentDate = new Date(payment.paid_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  // "PAID" was hardcoded, so a receipt for the first of two instalments said
+  // the bill was paid. Read the real position: what this receipt covers, what
+  // has been received to date across all payments, and what is left.
+  const balanceAfter = invoice.balance_due_pesewas;
+  const settled = balanceAfter <= 0;
 
   const html = renderHtmlDocument({
     docType: 'RECEIPT',
     docNumber: payment.number,
     docDate: paymentDate,
-    docStatus: 'PAID',
+    docStatus: settled ? 'PAID' : 'PART PAID',
+    company: invoice.company,
     customerName: payment.customer_name,
     customerPhone: payment.customer_phone,
     customerEmail: payment.customer_email,
     additionalInfo: [
       { label: 'Payment Method', value: payment.method.toUpperCase() },
-      { label: 'Reference', value: payment.reference || 'N/A' }
+      { label: 'Reference', value: payment.reference || 'N/A' },
     ],
     tableHeaders: ['Description', 'Qty', 'Days', 'Unit Price', 'Amount'],
     tableRows,
     subtotalPesewas: invoice.subtotal_pesewas,
-    taxPesewas: invoice.tax_pesewas,
+    // The stored tax_pesewas column is always 0 — tax lives in the three split
+    // columns — so the receipt used to jump from subtotal to total with no
+    // explanation. A VAT receipt has to show the VAT.
+    taxLines: invoice.include_statutory_taxes
+      ? [
+          { label: 'NHIL (2.5%)', pesewas: invoice.nhil_pesewas },
+          { label: 'GETFund (2.5%)', pesewas: invoice.getfund_pesewas },
+          { label: 'VAT (15%)', pesewas: invoice.vat_pesewas },
+        ]
+      : [],
     discountPesewas: invoice.discount_pesewas,
     totalPesewas: invoice.total_pesewas,
-    payments: [{ amount_pesewas: payment.amount_pesewas, method: payment.method, paid_at: payment.paid_at }],
-    notes: invoice.notes
+    payments: [{ amount_pesewas: payment.amount_pesewas, method: payment.method, paid_at: payment.paid_at, kind: payment.kind }],
+    paidToDatePesewas: invoice.amount_paid_pesewas,
+    balancePesewas: balanceAfter,
+    notes: invoice.notes,
   });
 
   return archiveDocument(db, tenantId, 'payment', paymentId, 'receipt', title, html);
@@ -760,13 +826,32 @@ function readInvoiceBundle(db: Database, tenantId: string, invoiceId: string) {
     )
     .all({ id: invoiceId, tenant_id: tenantId }) as Array<Record<string, unknown>>;
   
+  // kind and reference were missing from this SELECT, so the template printed
+  // the literal word "undefined" for every payment, never showed a reference,
+  // and — since the sign of a refund hangs off kind — would have printed a
+  // refund as money received.
   const payments = db
     .prepare(
-      `SELECT amount_pesewas, method, paid_at FROM payments
+      `SELECT kind, amount_pesewas, method, reference, paid_at FROM payments
        WHERE invoice_id = @id AND tenant_id = @tenant_id AND deleted_at IS NULL
        ORDER BY paid_at ASC`,
     )
-    .all({ id: invoiceId, tenant_id: tenantId }) as Array<{ amount_pesewas: number; method: string; paid_at: string }>;
+    .all({ id: invoiceId, tenant_id: tenantId }) as Array<{
+      kind: 'deposit' | 'payment' | 'refund';
+      amount_pesewas: number;
+      method: string;
+      reference: string | null;
+      paid_at: string;
+    }>;
+
+  // The same rule getInvoice uses: everything received, less refunds. These two
+  // figures were never computed here at all, so the template's `?? 0` fallback
+  // fired on every print — every part-paid invoice said "Amount Paid 0.00" and
+  // showed the full total as the balance, and a fully PAID invoice did too.
+  const amount_paid_pesewas = payments.reduce(
+    (acc, p) => acc + (p.kind === 'refund' ? -p.amount_pesewas : p.amount_pesewas),
+    0,
+  );
 
   return {
     ...invoice,
@@ -779,6 +864,9 @@ function readInvoiceBundle(db: Database, tenantId: string, invoiceId: string) {
       line_total_pesewas: number;
     }>,
     payments,
+    amount_paid_pesewas,
+    balance_due_pesewas: invoice.total_pesewas - amount_paid_pesewas,
+    company: readLetterhead(db),
   };
 }
 
@@ -794,10 +882,16 @@ interface DocumentOptions {
   tableHeaders: string[];
   tableRows: string[][];
   subtotalPesewas?: number;
-  taxPesewas?: number;
+  /** Itemised taxes. The single tax_pesewas column is always 0 and is ignored. */
+  taxLines?: Array<{ label: string; pesewas: number }>;
   discountPesewas?: number;
   totalPesewas: number;
-  payments?: Array<{ amount_pesewas: number; method: string; paid_at: string }>;
+  payments?: Array<{ amount_pesewas: number; method: string; paid_at: string; kind?: string }>;
+  /** Receipts: everything received to date across all payments. */
+  paidToDatePesewas?: number;
+  /** Receipts: what is still owed after this payment. */
+  balancePesewas?: number;
+  company?: Letterhead;
   notes?: string | null;
 }
 
@@ -1015,10 +1109,11 @@ function renderHtmlDocument(options: DocumentOptions): string {
   <div class="container">
     <header>
       <div class="company-info">
-        <h1>Donkor &amp; Sons</h1>
-        <p>Premium Equipment &amp; Hearse Services</p>
-        <p>Accra, Ghana</p>
-        <p>+233 20 000 0000 | info@donkorrentals.com</p>
+        <h1>${escape(options.company?.name ?? 'Donkor & Sons')}</h1>
+        ${(options.company?.address ?? '').split('\n').map((ln) => ln.trim()).filter(Boolean).map((ln) => `<p>${escape(ln)}</p>`).join('')}
+        ${[options.company?.phone, options.company?.tin ? `TIN ${options.company.tin}` : null].filter(Boolean).length
+          ? `<p>${[options.company?.phone, options.company?.tin ? `TIN ${options.company.tin}` : null].filter(Boolean).map((v) => escape(String(v))).join(' | ')}</p>`
+          : ''}
       </div>
       <div class="doc-meta">
         <div class="doc-type">${escape(options.docType)}</div>
@@ -1095,33 +1190,45 @@ function renderHtmlDocument(options: DocumentOptions): string {
           ${options.subtotalPesewas !== undefined ? `
           <tr>
             <td class="label">Subtotal</td>
-            <td>GHS ${(options.subtotalPesewas / 100).toFixed(2)}</td>
+            <td>GHC ${fmtMoneyDoc(options.subtotalPesewas)}</td>
           </tr>
           ` : ''}
-          ${options.taxPesewas ? `
+          ${(options.taxLines ?? []).map((t) => `
           <tr>
-            <td class="label">Tax</td>
-            <td>GHS ${(options.taxPesewas / 100).toFixed(2)}</td>
+            <td class="label">${escape(t.label)}</td>
+            <td>GHC ${fmtMoneyDoc(t.pesewas)}</td>
           </tr>
-          ` : ''}
+          `).join('')}
           ${options.discountPesewas ? `
           <tr>
             <td class="label">Discount</td>
-            <td>- GHS ${(options.discountPesewas / 100).toFixed(2)}</td>
+            <td>- GHC ${fmtMoneyDoc(options.discountPesewas)}</td>
           </tr>
           ` : ''}
           ${options.docType !== 'TRIP SHEET' ? `
           <tr class="grand-total">
-            <td class="label">${options.docType === 'CONTRACT' ? 'Total / Day' : 'Total Due'}</td>
-            <td>GHS ${(options.totalPesewas / 100).toFixed(2)}</td>
+            <td class="label">${options.docType === 'CONTRACT' ? 'Total / Day' : 'Total'}</td>
+            <td>GHC ${fmtMoneyDoc(options.totalPesewas)}</td>
           </tr>
           ` : ''}
           ${(options.payments || []).map(p => `
           <tr class="green-total">
-            <td class="label">Paid via ${p.method.toUpperCase()}</td>
-            <td>GHS ${(p.amount_pesewas / 100).toFixed(2)}</td>
+            <td class="label">${p.kind === 'refund' ? 'Refunded' : 'This receipt'} · ${p.method.toUpperCase()}</td>
+            <td>${p.kind === 'refund' ? '- ' : ''}GHC ${fmtMoneyDoc(p.amount_pesewas)}</td>
           </tr>
           `).join('')}
+          ${options.paidToDatePesewas !== undefined ? `
+          <tr>
+            <td class="label">Paid to date</td>
+            <td>GHC ${fmtMoneyDoc(options.paidToDatePesewas)}</td>
+          </tr>
+          ` : ''}
+          ${options.balancePesewas !== undefined ? `
+          <tr class="grand-total">
+            <td class="label">${options.balancePesewas < 0 ? 'Credit due to customer' : 'Balance remaining'}</td>
+            <td>GHC ${fmtMoneyDoc(Math.abs(options.balancePesewas))}</td>
+          </tr>
+          ` : ''}
         </table>
       </div>
     </div>

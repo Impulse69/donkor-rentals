@@ -248,6 +248,7 @@ describe('createInvoiceFromBooking — two formats', () => {
 describe('renderInvoiceHtml — customer-mandated template', () => {
   const baseInvoice: InvoiceTemplateData = {
     number: 'INV-000123',
+    company: { name: 'Donkor and Sons Ltd.', address: 'P. O. Box 92 Agona Swedru', phone: '0203915510', tin: null },
     status: 'draft',
     issued_at: '2026-05-20T10:00:00.000Z',
     due_at: '2026-05-27T10:00:00.000Z',
@@ -263,7 +264,7 @@ describe('renderInvoiceHtml — customer-mandated template', () => {
     initial_payment_percent: 60,
     before_delivery_percent: 40,
     lines: [
-      { description: 'Stack chairs\nGold trim, padded', quantity: 100, unit_price_pesewas: 1_000, line_total_pesewas: 100_000 },
+      { description: 'Stack chairs\nGold trim, padded', quantity: 100, days: 1, unit_price_pesewas: 1_000, line_total_pesewas: 100_000 },
     ],
   };
 
@@ -274,8 +275,8 @@ describe('renderInvoiceHtml — customer-mandated template', () => {
     expect(html).toContain('>GETFund (2.5%)<');
     expect(html).toContain('>VAT (15%)<');
     expect(html).toContain('Total Amount');
-    expect(html).toContain('GHC 1000.00'); // subtotal in cedis
-    expect(html).toContain('GHC 1207.50'); // total — no thousands separator in template
+    expect(html).toContain('GHC 1,000.00'); // subtotal in cedis
+    expect(html).toContain('GHC 1,207.50'); // total — no thousands separator in template
     expect(html).toContain('Acme Events Ltd.');
     expect(html).toContain('INV-000123');
     expect(html).toContain('Initial Payment: 60%');
@@ -295,7 +296,7 @@ describe('renderInvoiceHtml — customer-mandated template', () => {
     expect(html).not.toContain('>GETFund (2.5%)<');
     expect(html).not.toContain('>VAT (15%)<');
     expect(html).toContain('Total Amount');
-    expect(html).toContain('GHC 1000.00');
+    expect(html).toContain('GHC 1,000.00');
   });
 
   it('always renders the note and tagline footer', () => {
@@ -306,7 +307,10 @@ describe('renderInvoiceHtml — customer-mandated template', () => {
       expect(html).toContain('where every event becomes a memory');
       expect(html).toContain('Donkor and Sons Ltd.');
       expect(html).toContain('P. O. Box 92 Agona Swedru');
-      expect(html).toContain('www.donkorandsons.com');
+      // The letterhead is the company profile now, not a hardcoded block.
+      expect(html).toContain('Donkor and Sons Ltd.');
+      expect(html).toContain('P. O. Box 92 Agona Swedru');
+      expect(html).toContain('0203915510');
       expect(html).toContain('Bill To:');
       // Logo letterhead — base64-embedded so the print HTML is self-contained.
       expect(html).toContain('data:image/png;base64,');
@@ -318,12 +322,13 @@ describe('renderInvoiceHtml — customer-mandated template', () => {
 describe('applyStatutoryOverride — print-time format swap', () => {
   const statutory: InvoiceTemplateData = {
     number: 'INV-OVR-1', status: 'issued',
+    company: { name: 'Donkor and Sons Ltd.', address: 'P. O. Box 92 Agona Swedru', phone: '0203915510', tin: null },
     issued_at: null, due_at: null, notes: null,
     customer_name: 'X', subtotal_pesewas: 100_000, discount_pesewas: 0,
     total_pesewas: 120_750, include_statutory_taxes: true,
     nhil_pesewas: 2_500, getfund_pesewas: 2_500, vat_pesewas: 15_750,
     initial_payment_percent: 50, before_delivery_percent: 50,
-    lines: [{ description: 'X', quantity: 1, unit_price_pesewas: 100_000, line_total_pesewas: 100_000 }],
+    lines: [{ description: 'X', quantity: 1, days: 1, unit_price_pesewas: 100_000, line_total_pesewas: 100_000 }],
   };
 
   it('Statutory → Simple zeroes the breakdown and rebases the total on subtotal', () => {
@@ -379,12 +384,13 @@ describe('applyStatutoryOverride — print-time format swap', () => {
 describe('renderInvoiceHtml — payment history ledger', () => {
   const withPayments: InvoiceTemplateData = {
     number: 'INV-LDG-1', status: 'issued',
+    company: { name: 'Donkor and Sons Ltd.', address: 'P. O. Box 92 Agona Swedru', phone: '0203915510', tin: null },
     issued_at: '2026-05-20T10:00:00.000Z', due_at: '2026-05-27T10:00:00.000Z', notes: null,
     customer_name: 'Acme Events Ltd.',
     subtotal_pesewas: 100_000, discount_pesewas: 0, total_pesewas: 120_750,
     include_statutory_taxes: true, nhil_pesewas: 2_500, getfund_pesewas: 2_500, vat_pesewas: 15_750,
     initial_payment_percent: 60, before_delivery_percent: 40,
-    lines: [{ description: 'Stack chairs', quantity: 100, unit_price_pesewas: 1_000, line_total_pesewas: 100_000 }],
+    lines: [{ description: 'Stack chairs', quantity: 100, days: 1, unit_price_pesewas: 1_000, line_total_pesewas: 100_000 }],
     payments: [
       { paid_at: '2026-05-10T09:00:00.000Z', kind: 'deposit', method: 'cash',          reference: null,          amount_pesewas: 30_000 },
       { paid_at: '2026-05-15T11:30:00.000Z', kind: 'payment', method: 'mobile_money',  reference: 'MTN-XYZ-987', amount_pesewas: 40_000 },
