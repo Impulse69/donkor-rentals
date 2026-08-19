@@ -10,14 +10,10 @@ import {
   type NormalBalance,
 } from '@shared/schemas';
 
-export function todayInput(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-export function monthStartInput(): string {
-  const d = new Date();
-  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), 1)).toISOString().slice(0, 10);
-}
+// Re-exported rather than redefined: these were UTC copies that disagreed with
+// the rest of the app for part of every day outside UTC+0. monthStartInput was
+// worse — it read local year/month and then built a UTC date from them.
+export { todayInput, monthStartInput } from '../../lib/dates';
 
 export function accountName(accounts: Account[], id: string | null | undefined): string {
   return accounts.find((a) => a.id === id)?.name ?? 'Unknown account';

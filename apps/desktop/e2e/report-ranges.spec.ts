@@ -16,8 +16,6 @@ let app: ElectronApplication;
 let win: Page;
 let userData: string;
 
-type Envelope<T> = { ok: boolean; data?: T; error?: { message?: string } };
-
 test.beforeAll(async () => {
   userData = mkdtempSync(path.join(tmpdir(), 'donkor-ranges-'));
   app = await electron.launch({
@@ -111,4 +109,48 @@ test('the top-customers range survives the trip through IPC', async () => {
   // The booking sits in February, so May must not attribute it any bookings.
   expect(revenue.feb).toBeGreaterThanOrEqual(0);
   expect(revenue.may).toBeLessThanOrEqual(0);
+});
+
+test('a date filter can be cleared and retyped', async () => {
+  // Journal Entries deleted the URL parameter on an empty value and then fell
+  // back to a default, so the field visibly jumped back to the start of the
+  // month the instant you cleared it — there was no way to clear and retype.
+  await win.evaluate(() => { window.location.hash = '#/accounting/journal'; });
+  await expect(win.locator('h1.page-title')).toHaveText('Journal Entries');
+
+  const from = win.getByLabel('Date from');
+  await expect(from).not.toHaveValue('');
+
+  await from.click();
+  await from.press('ControlOrMeta+a');
+  await from.press('Delete');
+
+  // It stays empty, and the page keeps working rather than erroring.
+  await expect(from).toHaveValue('');
+  await expect(win.locator('.error-boundary')).toHaveCount(0);
+
+  await from.fill('2027-01-01');
+  await expect(from).toHaveValue('2027-01-01');
+  await expect(win.locator('.error-boundary')).toHaveCount(0);
+});
+
+test('an account register survives its date being cleared', async () => {
+  // Register had the sharper version of the same bug: the emptied value reached
+  // the query as "", which the IPC layer rejects outright, so clearing a date
+  // replaced the register with an error.
+  await win.evaluate(() => { window.location.hash = '#/accounting/chart'; });
+  await expect(win.locator('h1.page-title')).toHaveText('Chart of Accounts');
+  await win.locator('.dtable tbody tr').first().locator('td').first().click();
+  await expect(win).toHaveURL(/accounting\/accounts\//);
+
+  const start = win.getByLabel('Start date');
+  await expect(start).not.toHaveValue('');
+  await start.click();
+  await start.press('ControlOrMeta+a');
+  await start.press('Delete');
+
+  await expect(start).toHaveValue('');
+  await expect(win.locator('.error-boundary')).toHaveCount(0);
+  // The register still renders rather than showing a validation failure.
+  await expect(win.getByText(/rejected|invalid|failed/i)).toHaveCount(0);
 });

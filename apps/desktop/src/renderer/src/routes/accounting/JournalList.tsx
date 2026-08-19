@@ -23,8 +23,14 @@ export default function JournalList(): JSX.Element {
   const navigate = useNavigate();
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
-  const dateFrom = searchParams.get('dateFrom') ?? monthStartInput();
-  const dateTo = searchParams.get('dateTo') ?? todayInput();
+  // Two values on purpose. What the box SHOWS is whatever was typed, empty
+  // included — deleting the param instead made the field snap back to the
+  // default mid-edit, so it could never be cleared and retyped. What we QUERY
+  // with is always a real date.
+  const dateFromInput = searchParams.get('dateFrom') ?? monthStartInput();
+  const dateToInput = searchParams.get('dateTo') ?? todayInput();
+  const dateFrom = dateFromInput || monthStartInput();
+  const dateTo = dateToInput || todayInput();
   const origin = searchParams.get('origin') ?? '';
   const sourceType = searchParams.get('sourceType') ?? '';
   const [voidingId, setVoidingId] = useState<string | null>(null);
@@ -40,8 +46,10 @@ export default function JournalList(): JSX.Element {
 
   function setParam(name: string, value: string): void {
     const next = new URLSearchParams(searchParams);
-    if (value) next.set(name, value);
-    else next.delete(name);
+    // Keep the key even when empty: an absent param means "never touched, use
+    // the default", an empty one means "deliberately cleared". Collapsing the
+    // two is what made a cleared field jump back to the default.
+    next.set(name, value);
     setSearchParams(next, { replace: true });
   }
 
@@ -94,8 +102,8 @@ export default function JournalList(): JSX.Element {
       </header>
 
       <div className="dtable-toolbar fade-up fade-up-1">
-        <input className="input" type="date" value={dateFrom} onChange={(e) => setParam('dateFrom', e.target.value)} aria-label="Date from" />
-        <input className="input" type="date" value={dateTo} onChange={(e) => setParam('dateTo', e.target.value)} aria-label="Date to" />
+        <input className="input" type="date" value={dateFromInput} onChange={(e) => setParam('dateFrom', e.target.value)} aria-label="Date from" />
+        <input className="input" type="date" value={dateToInput} onChange={(e) => setParam('dateTo', e.target.value)} aria-label="Date to" />
         <select className="select" value={origin} onChange={(e) => setParam('origin', e.target.value)} aria-label="Origin">
           <option value="">All origins</option>
           {JOURNAL_ORIGIN_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}

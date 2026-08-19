@@ -42,6 +42,10 @@ export default function BookingDetail(): JSX.Element {
     [firstInvoiceId],
   );
   const [busy, setBusy] = useState(false);
+  // The confirm button stayed live while the request was in flight, so a second
+  // click fired a second call. Harmless for a soft delete; the same omission on
+  // a reversal would post the reversal twice.
+  const [removing, setRemoving] = useState(false);
   const [docBusy, setDocBusy] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -98,6 +102,8 @@ export default function BookingDetail(): JSX.Element {
   }
 
   async function runRemove(): Promise<void> {
+    if (removing) return;
+    setRemoving(true);
     try {
       await api.bookings.softDelete(b.id);
       toast.ok('Booking removed');
@@ -105,6 +111,8 @@ export default function BookingDetail(): JSX.Element {
       navigate(paths.bookings.list);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not remove');
+    } finally {
+      setRemoving(false);
     }
   }
 
@@ -322,6 +330,7 @@ export default function BookingDetail(): JSX.Element {
         body="Past records stay on file - this hides the booking from active lists."
         confirmLabel="Remove booking"
         tone="danger"
+        loading={removing}
       />
 
       <ConfirmModal
