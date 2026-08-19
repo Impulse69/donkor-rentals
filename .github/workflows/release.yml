@@ -36,3 +36,38 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm release
+
+      # electron-updater asks for "<channel>.yml", so a machine on the Beta
+      # channel fetches beta.yml and finds nothing unless one exists. Despite
+      # generateUpdatesFilesForAllChannels, the build emits latest.yml only, so
+      # publish the same manifest under the beta name for prerelease tags. The
+      # contents are channel-agnostic - version, files, hashes - the filename is
+      # the whole mechanism.
+      #
+      # Stable machines are unaffected either way: they resolve through GitHub's
+      # "latest release", which excludes prereleases.
+      - name: Publish beta channel manifest
+        if: contains(github.ref_name, '-beta')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release download "${{ github.ref_name }}" -p latest.yml -D .
+          cp latest.yml beta.yml
+          gh release upload "${{ github.ref_name }}" beta.yml --clobber
+
+      # electron-updater asks for "<channel>.yml", so a machine on the Beta
+      # channel fetches beta.yml and finds nothing unless one exists. Despite
+      # generateUpdatesFilesForAllChannels, the build emits latest.yml only, so
+      # publish the same manifest under the beta name for prerelease tags. The
+      # contents are channel-agnostic - version, files, hashes - the filename is
+      # the whole mechanism.
+      - name: Publish beta channel manifest
+        if: contains(github.ref_name, '-beta')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release download "${{ github.ref_name }}" -p latest.yml -D .
+          cp latest.yml beta.yml
+          gh release upload "${{ github.ref_name }}" beta.yml --clobber
