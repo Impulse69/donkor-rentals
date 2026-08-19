@@ -6,7 +6,8 @@ import { paths } from '../../router/paths';
 import { formatDate, formatGhs } from '../../lib/format';
 import { printHtml } from '../../lib/print';
 import { ActionBar } from '../../components/ActionBar';
-import { Button } from '../../components/Button';
+import { Button, SplitButton } from '../../components/Button';
+import { Dropdown } from '../../components/Dropdown';
 import { StatusPill } from '../../components/StatusPill';
 import { Spinner } from '../../components/Spinner';
 import { EmptyState } from '../../components/EmptyState';
@@ -80,6 +81,59 @@ export default function BookingDetail(): JSX.Element {
   const transitions = BOOKING_STATUS_TRANSITIONS[b.status];
   const hasInvoice = Boolean(invoices.data && invoices.data.length > 0);
   const latestPayment = invoiceDetail.data?.payments?.[invoiceDetail.data.payments.length - 1];
+  const existingInvoiceId = hasInvoice ? invoices.data?.[0]?.id : undefined;
+
+  /**
+   * The single next step in the job, and so the single green button.
+   *
+   * Note that when the kit is out the step is "Record return" — the check-in
+   * that reconciles the deposit and records damage — and NOT the bare
+   * 'returned' status flip, which the transition table also offers. The flip
+   * is a shortcut that skips the money; it belongs in the menu, not under the
+   * cursor.
+   */
+  const nextStep: { label: string; run: () => void } | null = (() => {
+    if (b.status === 'out') {
+      return { label: 'Record return', run: () => navigate(`/returns/new/${b.id}`) };
+    }
+    if (b.status === 'returned') {
+      return existingInvoiceId
+        ? { label: 'View invoice', run: () => navigate(paths.invoices.detail(existingInvoiceId)) }
+        : { label: 'Generate invoice', run: () => navigate(paths.invoices.fromBooking(b.id)) };
+    }
+    const forward = transitions.find((t) => t !== 'cancelled');
+    if (forward) {
+      return { label: labelForTransition(b.status, forward), run: () => clickTransition(forward) };
+    }
+    return null;
+  })();
+
+  const moreActions = (
+    <>
+      {transitions
+        .filter((t) => t !== 'cancelled' && labelForTransition(b.status, t) !== nextStep?.label)
+        .map((t) => (
+          <Dropdown.Item key={t} onSelect={() => clickTransition(t)}>
+            {labelForTransition(b.status, t)}
+          </Dropdown.Item>
+        ))}
+      {b.status !== 'returned' && (
+        existingInvoiceId
+          ? <Dropdown.Item onSelect={() => navigate(paths.invoices.detail(existingInvoiceId))}>View invoice</Dropdown.Item>
+          : <Dropdown.Item onSelect={() => navigate(paths.invoices.fromBooking(b.id))}>Generate invoice</Dropdown.Item>
+      )}
+      <Dropdown.Item onSelect={() => { void printContract(); }}>Print contract</Dropdown.Item>
+      <Dropdown.Item onSelect={() => { void printTripSheet(); }}>Print trip sheet</Dropdown.Item>
+      {latestPayment && (
+        <Dropdown.Item onSelect={() => { void printReceipt(latestPayment.id); }}>Print receipt</Dropdown.Item>
+      )}
+      <Dropdown.Divider />
+      {transitions.includes('cancelled') && (
+        <Dropdown.Item danger onSelect={() => clickTransition('cancelled')}>Cancel booking</Dropdown.Item>
+      )}
+      <Dropdown.Item danger onSelect={() => setConfirmRemove(true)}>Remove booking</Dropdown.Item>
+    </>
+  );
 
   function itemLabel(itemId: string): string {
     if (catalog.status !== 'ok') return '...';
@@ -282,43 +336,30 @@ export default function BookingDetail(): JSX.Element {
           <Link to={paths.bookings.list}>
             <Button variant="ghost">Back</Button>
           </Link>
-          <Button variant="danger" onClick={() => setConfirmRemove(true)}>Remove</Button>
         </div>
         <div className="invoice-actionbar-right">
-          {transitions.map((t) => (
-            <Button
-              key={t}
-              variant={t === 'cancelled' ? 'danger' : 'primary'}
-              loading={busy}
-              onClick={() => clickTransition(t)}
-            >
-              {labelForTransition(b.status, t)}
-            </Button>
-          ))}
-          {b.status === 'out' && (
-            <Link to={`/returns/new/${b.id}`}><Button>Record return</Button></Link>
-          )}
-          {hasInvoice && invoices.data?.[0] ? (
-            <Link to={paths.invoices.detail(invoices.data[0].id)}>
-              <Button>View invoice</Button>
-            </Link>
-          ) : (
-            <Link to={paths.invoices.fromBooking(b.id)}>
-              <Button>Generate invoice</Button>
-            </Link>
-          )}
-          {latestPayment && (
-            <Button loading={docBusy} onClick={() => { void printReceipt(latestPayment.id); }}>
-              Print receipt
-            </Button>
-          )}
-          <Button loading={docBusy} onClick={() => { void printTripSheet(); }}>
-            Print trip sheet
-          </Button>
-          <Button loading={docBusy} onClick={() => { void printContract(); }}>
-            Print contract
-          </Button>
+          {/*
+            Eight buttons, two of them coloured, is not a set of choices.
+            Worse, the green one was "Mark returned" sitting immediately beside
+            "Record return" — near-identical wording, and the green one is the
+            WRONG one: it flips the status and skips the deposit and damage
+            check entirely. Recording the return properly is the actual next
+            step, so that is what wears the green now, and the bare status flip
+            moved into the menu where a shortcut belongs.
+
+            Remove also came off the top level. A destructive action does not
+            belong two pixels from the button people press every time.
+          */}
           <Link to={paths.bookings.edit(b.id)}><Button>Edit</Button></Link>
+          {nextStep ? (
+            <SplitButton loading={busy || docBusy} onClick={nextStep.run} menu={moreActions}>
+              {nextStep.label}
+            </SplitButton>
+          ) : (
+            <Dropdown trigger={<Button aria-label="More actions">More ▾</Button>}>
+              {moreActions}
+            </Dropdown>
+          )}
         </div>
       </ActionBar>
 
