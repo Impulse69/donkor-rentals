@@ -1,4 +1,4 @@
-import { useMemo, useState, type InputHTMLAttributes, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react';
 import { Input } from './Field';
 import {
   beginEdit,
@@ -44,6 +44,29 @@ function NumericInput({
   ...rest
 }: BaseProps & { spec: NumericFieldSpec }): JSX.Element {
   const [draft, setDraft] = useState<string | null>(null);
+
+  /*
+   * An outside change to `value` while the field is focused must still show —
+   * unless the person has actually typed something, in which case their typing
+   * wins.
+   *
+   * Without this, a focused field is blind to its own prop. The Take Payment
+   * sheet autofocuses the amount and then fills it in once the server has
+   * priced the booking; under load focus landed first, the draft was seeded
+   * "0.00", and the real figure arrived into state while the box went on
+   * showing 0.00. The person would have been asked to confirm a payment they
+   * could not see.
+   *
+   * "Has not typed" is detected by the draft still equalling the seed for the
+   * previous value. Anything else is the person's own text and is left alone.
+   */
+  const lastSeeded = useRef<number>(value);
+  useEffect(() => {
+    if (draft !== null && draft === beginEdit(spec, lastSeeded.current) && value !== lastSeeded.current) {
+      setDraft(beginEdit(spec, value));
+    }
+    lastSeeded.current = value;
+  }, [value, draft, spec]);
 
   return (
     <Input

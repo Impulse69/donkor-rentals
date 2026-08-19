@@ -296,20 +296,48 @@ export function getInvoice(
  *   unit_price  = booking_line.daily_rate_pesewas
  *   line_total  = unit_price * quantity * days
  */
-export function createInvoiceFromBooking(
+interface BookingQuote {
+  booking: { id: string; starts_at: string; ends_at: string; customer_id: string | null };
+  days: number;
+  lineDrafts: Array<{
+    booking_line_id: string;
+    description: string;
+    quantity: number;
+    days: number;
+    unit_price_pesewas: number;
+    line_total_pesewas: number;
+    sort_order: number;
+  }>;
+  subtotal: number;
+  breakdown: { nhil: number; getfund: number; vat: number; total_inclusive: number };
+  discount: number;
+  total: number;
+}
+
+/**
+ * Price a booking exactly as an invoice would, without writing anything.
+ *
+ * This is the single place a booking turns into money. createInvoiceFromBooking
+ * writes what it returns; previewInvoiceForBooking shows it to the person about
+ * to take payment; takePaymentForBooking charges it. Because all three call
+ * this, the figure on the payment sheet, the figure on the invoice, and the
+ * figure in the ledger cannot disagree — whichever button was pressed.
+ */
+function quoteInvoiceForBooking(
   db: Database,
   tenantId: string,
-  input: InvoiceCreateFromBooking,
-): InvoiceWithLines {
+  bookingId: string,
+  opts: { includeStatutory: boolean; discount: number },
+): BookingQuote {
   const booking = db
     .prepare(
       `SELECT id, starts_at, ends_at, customer_id FROM bookings
        WHERE id = @id AND tenant_id = @tenant_id AND deleted_at IS NULL`,
     )
-    .get({ id: input.booking_id, tenant_id: tenantId }) as
+    .get({ id: bookingId, tenant_id: tenantId }) as
     | { id: string; starts_at: string; ends_at: string; customer_id: string | null }
     | undefined;
-  if (!booking) throw new Error('createInvoiceFromBooking: booking not found');
+  if (!booking) throw new Error('Booking not found');
 
   const days = daysBetween(booking.starts_at, booking.ends_at);
 
@@ -338,7 +366,7 @@ export function createInvoiceFromBooking(
       plate: string | null;
     }>;
 
-  if (blines.length === 0) throw new Error('createInvoiceFromBooking: booking has no lines');
+  if (blines.length === 0) throw new Error('Booking has no lines to invoice');
 
   let subtotal = 0;
   const lineDrafts = blines.map((bl, idx) => {
@@ -358,16 +386,59 @@ export function createInvoiceFromBooking(
     };
   });
 
+  const breakdown = opts.includeStatutory
+    ? computeStatutoryTaxes(subtotal)
+    : { nhil: 0, getfund: 0, vat: 0, total_inclusive: subtotal };
+  assertDiscountFits(opts.discount, breakdown.total_inclusive);
+  const total = breakdown.total_inclusive - opts.discount;
+
+  return { booking, days, lineDrafts, subtotal, breakdown, discount: opts.discount, total };
+}
+
+/** What the payment sheet shows before any invoice exists. */
+export interface InvoicePreview {
+  days: number;
+  subtotal_pesewas: number;
+  nhil_pesewas: number;
+  getfund_pesewas: number;
+  vat_pesewas: number;
+  total_pesewas: number;
+  include_statutory_taxes: boolean;
+}
+
+/**
+ * Defaults the quick path uses when it has to raise the invoice itself. These
+ * are the New Invoice form's own defaults, on purpose: taking payment from the
+ * booking must land on the same total as walking through the form and accepting
+ * what it offers. If that form's defaults change, change these with them.
+ */
+const QUICK_INVOICE_DEFAULTS = { includeStatutory: true, discount: 0 } as const;
+
+export function previewInvoiceForBooking(db: Database, tenantId: string, bookingId: string): InvoicePreview {
+  const q = quoteInvoiceForBooking(db, tenantId, bookingId, QUICK_INVOICE_DEFAULTS);
+  return {
+    days: q.days,
+    subtotal_pesewas: q.subtotal,
+    nhil_pesewas: q.breakdown.nhil,
+    getfund_pesewas: q.breakdown.getfund,
+    vat_pesewas: q.breakdown.vat,
+    total_pesewas: q.total,
+    include_statutory_taxes: QUICK_INVOICE_DEFAULTS.includeStatutory,
+  };
+}
+
+export function createInvoiceFromBooking(
+  db: Database,
+  tenantId: string,
+  input: InvoiceCreateFromBooking,
+): InvoiceWithLines {
   const includeStatutory = input.include_statutory_taxes ?? true;
   const discount = input.discount_pesewas ?? 0;
   const initialPct = input.initial_payment_percent ?? 50;
   const beforeDeliveryPct = input.before_delivery_percent ?? 50;
 
-  const breakdown = includeStatutory
-    ? computeStatutoryTaxes(subtotal)
-    : { nhil: 0, getfund: 0, vat: 0, total_inclusive: subtotal };
-  assertDiscountFits(discount, breakdown.total_inclusive);
-  const total = breakdown.total_inclusive - discount;
+  const { booking, lineDrafts, subtotal, breakdown, total } =
+    quoteInvoiceForBooking(db, tenantId, input.booking_id, { includeStatutory, discount });
 
   const id = uuidv4();
   const now = nowIso();
@@ -571,6 +642,87 @@ function readBalance(
       | { total: number; paid: number; status: string; booking_id: string }
       | undefined) ?? null
   );
+}
+
+/**
+ * Take payment against a booking — the walk-in, pay-at-the-counter path.
+ *
+ * Small rentals do not need anyone to "go through invoicing"; they need the
+ * money taken and a receipt handed over. But every payment in this system is
+ * recorded against an invoice, because the invoice is what posts the sale to
+ * income — without it the P&L is silent. So this raises the paperwork the
+ * person should never have to look at: it finds the booking's open invoice or
+ * creates one on the New Invoice form's defaults, issues it if it is still a
+ * draft, and records the payment. One transaction; all of it or none of it.
+ *
+ * This is what QuickBooks calls a Sales Receipt as distinct from an Invoice.
+ * Both record the sale; the only difference is whether anyone has to wait for
+ * the money.
+ *
+ * Never raises a second invoice for a booking that already has a live one:
+ * "Take payment" on a booking someone has already started invoicing pays that
+ * invoice. A voided invoice does not count as live.
+ */
+export function takePaymentForBooking(
+  db: Database,
+  tenantId: string,
+  input: {
+    booking_id: string;
+    amount_pesewas: number;
+    method: PaymentCreateInput['method'];
+    paid_at: string;
+    reference?: string | null | undefined;
+    notes?: string | null | undefined;
+  },
+): { invoice: InvoiceWithLines; payment: Payment; created_invoice: boolean } {
+  const tx = db.transaction(() => {
+    const booking = db
+      .prepare('SELECT id, status FROM bookings WHERE id = @id AND tenant_id = @tenant_id AND deleted_at IS NULL')
+      .get({ id: input.booking_id, tenant_id: tenantId }) as { id: string; status: string } | undefined;
+    if (!booking) throw new Error('Booking not found');
+    if (booking.status === 'cancelled') throw new Error('This booking was cancelled. Reinstate it before taking payment.');
+
+    const live = db
+      .prepare(
+        `SELECT id FROM invoices
+         WHERE booking_id = @booking_id AND tenant_id = @tenant_id
+           AND deleted_at IS NULL AND status <> 'void'
+         ORDER BY created_at DESC LIMIT 1`,
+      )
+      .get({ booking_id: input.booking_id, tenant_id: tenantId }) as { id: string } | undefined;
+
+    let created = false;
+    let invoice: InvoiceWithLines;
+    if (live) {
+      const found = getInvoice(db, tenantId, live.id);
+      if (!found) throw new Error('takePaymentForBooking: invoice readback failed');
+      invoice = found;
+    } else {
+      invoice = createInvoiceFromBooking(db, tenantId, {
+        booking_id: input.booking_id,
+        include_statutory_taxes: QUICK_INVOICE_DEFAULTS.includeStatutory,
+        discount_pesewas: QUICK_INVOICE_DEFAULTS.discount,
+      } as InvoiceCreateFromBooking);
+      created = true;
+    }
+
+    if (invoice.status === 'draft') {
+      invoice = updateInvoice(db, tenantId, invoice.id, { status: 'issued' } as InvoiceUpdateInput);
+    }
+
+    const { payment, invoice: after } = recordPayment(db, tenantId, {
+      invoice_id: invoice.id,
+      kind: 'payment',
+      amount_pesewas: input.amount_pesewas,
+      method: input.method,
+      paid_at: input.paid_at,
+      reference: input.reference ?? null,
+      notes: input.notes ?? null,
+    } as PaymentCreateInput);
+
+    return { invoice: after, payment, created_invoice: created };
+  });
+  return tx();
 }
 
 export function recordPayment(
