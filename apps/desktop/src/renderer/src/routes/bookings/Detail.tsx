@@ -31,6 +31,10 @@ export default function BookingDetail(): JSX.Element {
   const navigate = useNavigate();
   const toast = useToast();
   const booking = useAsync(() => api.bookings.get(id), [id]);
+  // Booking lines store an item id, not a name. Without this the line table
+  // reads "a1b2c3d4", which tells nobody what is being collected. No status
+  // filter: a retired hearse still has to name itself on an old booking.
+  const catalog = useAsync(() => api.catalog.list({}), []);
   const invoices = useAsync(() => api.invoices.list({ bookingId: id }), [id]);
   const firstInvoiceId = invoices.data?.[0]?.id;
   const invoiceDetail = useAsync(
@@ -72,6 +76,12 @@ export default function BookingDetail(): JSX.Element {
   const transitions = BOOKING_STATUS_TRANSITIONS[b.status];
   const hasInvoice = Boolean(invoices.data && invoices.data.length > 0);
   const latestPayment = invoiceDetail.data?.payments?.[invoiceDetail.data.payments.length - 1];
+
+  function itemLabel(itemId: string): string {
+    if (catalog.status !== 'ok') return '...';
+    const item = catalog.data.find((i) => i.id === itemId);
+    return item ? item.name : 'Item no longer in the catalogue';
+  }
 
   async function transition(next: BookingStatus): Promise<void> {
     setBusy(true);
@@ -213,7 +223,7 @@ export default function BookingDetail(): JSX.Element {
                   <tr key={l.id} style={{ cursor: 'default' }}>
                     <td>
                       <Link to={paths.catalog.detail(l.item_id)} style={{ color: 'inherit' }}>
-                        <span className="mono muted" style={{ fontSize: 12 }}>{l.item_id.slice(0, 8)}</span>
+                        <span style={{ fontSize: 13 }}>{itemLabel(l.item_id)}</span>
                       </Link>
                       <HearseFields line={l} />
                     </td>

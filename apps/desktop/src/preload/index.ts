@@ -279,8 +279,10 @@ const api = {
     overview: () => call<ReportsOverview>('reports:overview'),
     utilization: (start: string, end: string) =>
       call<UtilizationRow[]>('reports:utilization', { start, end }),
-    topCustomers: (limit?: number) => call<TopCustomerRow[]>('reports:topCustomers', { limit }),
-    tripLog: (limit?: number) => call<TripLogRow[]>('reports:tripLog', { limit }),
+    topCustomers: (limit?: number, start?: string, end?: string) =>
+      call<TopCustomerRow[]>('reports:topCustomers', { limit, start, end }),
+    tripLog: (limit?: number, start?: string, end?: string) =>
+      call<TripLogRow[]>('reports:tripLog', { limit, start, end }),
     damageSummary: () => call<DamageSummaryRow[]>('reports:damageSummary'),
     exportCsv: () => call<string>('reports:exportCsv'),
     trialBalance: (asOf: string, start?: string) =>

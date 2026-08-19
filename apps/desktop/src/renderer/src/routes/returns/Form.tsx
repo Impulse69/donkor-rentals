@@ -25,6 +25,9 @@ interface LineState {
 export default function ReturnForm(): JSX.Element {
   const { bookingId = '' } = useParams();
   const booking = useAsync(() => api.bookings.get(bookingId), [bookingId]);
+  // The inspection checklist named each item by a slice of its id. Someone
+  // standing over a pile of returned kit cannot match "a1b2c3d4" to anything.
+  const catalog = useAsync(() => api.catalog.list({}), []);
   const navigate = useNavigate();
   const toast = useToast();
   const [returnedAt, setReturnedAt] = useState(todayInput());
@@ -162,7 +165,11 @@ export default function ReturnForm(): JSX.Element {
               <div key={line.id} className="card" style={{ background: 'var(--panel-warm, var(--panel))' }}>
                 <div className="row-between" style={{ marginBottom: 12 }}>
                   <div>
-                    <span className="mono muted" style={{ fontSize: 12 }}>{line.item_id.slice(0, 8)}</span>
+                    <strong style={{ fontSize: 14 }}>
+                      {catalog.status === 'ok'
+                        ? (catalog.data.find((i) => i.id === line.item_id)?.name ?? 'Item no longer in the catalogue')
+                        : '...'}
+                    </strong>
                     <div>Qty booked: {line.quantity}</div>
                   </div>
                   <strong>{formatGhs(line.daily_rate_pesewas)} / day</strong>

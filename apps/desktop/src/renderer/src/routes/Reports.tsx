@@ -33,7 +33,7 @@ interface ReportDef {
   label: string;
   group: string;
   description: string;
-  mode: 'range' | 'as-of';
+  mode: 'range' | 'as-of' | 'live';
 }
 
 interface TrialBalanceRow {
@@ -104,14 +104,14 @@ const REPORTS: ReportDef[] = [
   { key: 'profit-loss', label: 'Profit and Loss', group: 'Business overview', description: 'Income, cost of revenue, expenses, and net profit.', mode: 'range' },
   { key: 'balance-sheet', label: 'Balance Sheet', group: 'Business overview', description: 'Assets, liabilities, and computed equity as of a date.', mode: 'as-of' },
   { key: 'ar-aging', label: 'A/R Ageing Summary', group: 'Who owes you', description: 'Open receivables grouped by ageing bucket.', mode: 'as-of' },
-  { key: 'open-invoices', label: 'Open Invoices', group: 'Who owes you', description: 'Issued invoices with a remaining balance.', mode: 'range' },
+  { key: 'open-invoices', label: 'Open Invoices', group: 'Who owes you', description: 'Issued invoices with a remaining balance, right now.', mode: 'live' },
   { key: 'trial-balance', label: 'Trial Balance', group: 'For my accountant', description: 'Debit and credit balances by account.', mode: 'range' },
   { key: 'journal', label: 'Journal', group: 'For my accountant', description: 'Posted general ledger activity.', mode: 'range' },
   { key: 'account-list', label: 'Account List', group: 'For my accountant', description: 'Active and inactive chart of account rows.', mode: 'as-of' },
   { key: 'utilization', label: 'Utilization', group: 'Rentals', description: 'Booked quantity-days and utilization percentage.', mode: 'range' },
   { key: 'top-customers', label: 'Top Customers', group: 'Rentals', description: 'Highest-revenue rental customers.', mode: 'range' },
   { key: 'trip-log', label: 'Trip Log', group: 'Rentals', description: 'Recent hearse trip activity.', mode: 'range' },
-  { key: 'revenue', label: 'Revenue', group: 'Rentals', description: 'Revenue and operations snapshot.', mode: 'range' },
+  { key: 'revenue', label: 'Revenue', group: 'Rentals', description: 'Today, this week and this month at a glance.', mode: 'live' },
 ];
 
 const GROUPS = ['Business overview', 'Who owes you', 'For my accountant', 'Rentals'];
@@ -155,8 +155,8 @@ export default function Reports(): JSX.Element {
   const report = REPORTS.find((r) => r.key === selected) ?? REPORTS[0];
   const overview = useAsync(() => api.reports.overview(), []);
   const utilization = useAsync(() => api.reports.utilization(range.start, range.end), [range.start, range.end]);
-  const topCustomers = useAsync(() => api.reports.topCustomers(10), []);
-  const trips = useAsync(() => api.reports.tripLog(50), []);
+  const topCustomers = useAsync(() => api.reports.topCustomers(10, range.start, range.end), [range.start, range.end]);
+  const trips = useAsync(() => api.reports.tripLog(50, range.start, range.end), [range.start, range.end]);
   const pnl = useAsync(() => api.reports.profitAndLoss(range.start, range.end), [range.start, range.end]);
   const balanceSheet = useAsync(() => api.reports.balanceSheet(asOf), [asOf]);
   const arAging = useAsync(() => api.reports.arAging(asOf), [asOf]);
@@ -258,9 +258,9 @@ export default function Reports(): JSX.Element {
                 <Input label="Start" type="date" value={range.start} onChange={(e) => { setPreset('custom'); setRange((s) => ({ ...s, start: e.target.value })); }} />
                 <Input label="End" type="date" value={range.end} onChange={(e) => { setPreset('custom'); setRange((s) => ({ ...s, end: e.target.value })); }} />
               </>
-            ) : (
+            ) : report.mode === 'as-of' ? (
               <Input label="As of" type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
-            )}
+            ) : null}
             <div className="grow" />
             <div className="muted" style={{ alignSelf: 'center' }}>{report.description}</div>
           </div>
@@ -270,7 +270,11 @@ export default function Reports(): JSX.Element {
               <div>
                 <h2 className="card-title" style={{ margin: 0 }}>{report.label}</h2>
                 <div className="faint mono" style={{ fontSize: 12 }}>
-                  {report.mode === 'as-of' ? `As of ${asOf}` : `${range.start} to ${range.end}`}
+                  {report.mode === 'as-of'
+                    ? `As of ${asOf}`
+                    : report.mode === 'range'
+                      ? `${range.start} to ${range.end}`
+                      : 'Current position'}
                 </div>
               </div>
             </div>

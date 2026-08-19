@@ -69,7 +69,12 @@ export default function ReturnsList(): JSX.Element {
                 </thead>
                 <tbody>
                   {(rows as ReturnRow[]).map((row) => {
-                    const go = (): void => navigate(`/returns/new/${row.booking_id}`);
+                    // Every row here IS a recorded return, and the return form
+                    // refuses a booking that has already been returned — so this
+                    // used to land on "Return already recorded" every single
+                    // time, with no way through. The booking is where the
+                    // charges, deposit and refund actually live.
+                    const go = (): void => navigate(`/bookings/${row.booking_id}`);
                     return (
                       <tr
                         key={row.id}
