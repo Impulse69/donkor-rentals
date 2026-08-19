@@ -69,13 +69,11 @@ test('boots into the QBO shell', async () => {
 
 test('sidebar exposes the QBO sections and no future-phase links', async () => {
   const nav = win.locator('.sidebar-nav');
-  for (const label of ['Dashboard', 'Invoices', 'Customers', 'Bookings', 'Products and Services', 'Returns', 'Calendar', 'Expenses', 'Chart of Accounts', 'Journal Entries', 'Reports', 'Taxes']) {
+  for (const label of ['Dashboard', 'Invoices', 'Customers', 'Bookings', 'Products and Services', 'Returns', 'Calendar', 'Expenses', 'Vendors', 'Chart of Accounts', 'Journal Entries', 'Reports', 'Taxes']) {
     await expect(nav.getByText(label, { exact: true })).toBeVisible();
   }
   // Settings moved to the top-bar gear, as in QBO.
   await expect(nav.getByText('Settings', { exact: true })).toHaveCount(0);
-  // Vendors was pulled from the sidebar: it is only a payee label on an expense.
-  await expect(nav.getByText('Vendors', { exact: true })).toHaveCount(0);
 });
 
 test('+ New opens and every entry targets a route that renders', async () => {
@@ -83,7 +81,7 @@ test('+ New opens and every entry targets a route that renders', async () => {
   const menu = win.locator('.new-menu');
   await expect(menu).toBeVisible();
 
-  for (const label of ['Expense', 'Bill', 'Journal entry']) {
+  for (const label of ['Expense', 'Bill', 'Journal entry', 'Vendor']) {
     await expect(menu.getByRole('menuitem', { name: label })).toBeVisible();
   }
 
@@ -94,6 +92,7 @@ test('+ New opens and every entry targets a route that renders', async () => {
     ['Expense', /New expense/],
     ['Bill', /New bill/],
     ['Journal entry', /New journal entry/],
+    ['Vendor', /Add a vendor/],
   ];
 
   for (const [label, heading] of entries) {
@@ -114,6 +113,7 @@ test('navigates every converted screen without an error boundary', async () => {
     ['Products and Services', 'Products and Services'],
     ['Returns', 'Damage and deposits'],
     ['Expenses', 'Expenses'],
+    ['Vendors', 'Vendors'],
     ['Chart of Accounts', 'Chart of Accounts'],
     ['Journal Entries', 'Journal Entries'],
     ['Reports', 'Reports'],

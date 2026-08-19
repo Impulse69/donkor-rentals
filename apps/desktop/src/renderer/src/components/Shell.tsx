@@ -20,6 +20,7 @@ const NAV_ORDER = [
   '/returns',
   '/bookings/calendar',
   '/expenses',
+  '/expenses/vendors',
   '/accounting/chart',
   '/accounting/journal',
   '/reports',
@@ -48,6 +49,7 @@ const NEW_MENU = [
       { label: 'Expense', to: '/expenses/new' },
       { label: 'Bill', to: '/expenses/new?kind=bill' },
       { label: 'Journal entry', to: '/accounting/journal/new' },
+      { label: 'Vendor', to: '/expenses/vendors/new' },
     ],
   },
 ] as const;
