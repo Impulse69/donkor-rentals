@@ -139,6 +139,21 @@ test('exactly one sidebar link is active at a time, even on a nested route', asy
   await expect(win.locator('.sidebar-link.active')).toContainText('Calendar');
 });
 
+test('clicking a Chart of Accounts row opens that account register', async () => {
+  // .dtable paints a pointer cursor on every row and every other list opens its
+  // row on click, so a chart row that did nothing read as broken. Reported from
+  // the field as "the pointer is in picker mode but clicking does nothing".
+  await win.locator('.sidebar-nav').getByText('Chart of Accounts', { exact: true }).click();
+  await expect(win.locator('h1.page-title')).toHaveText('Chart of Accounts');
+
+  const firstRow = win.locator('.dtable tbody tr').first();
+  await expect(firstRow).toBeVisible();
+  await firstRow.locator('td').first().click();
+
+  await expect(win).toHaveURL(/accounting\/accounts\//, { timeout: 10_000 });
+  await expect(win.locator('.error-boundary')).toHaveCount(0);
+});
+
 test('a fresh install explains an empty catalogue instead of a dead item picker', async () => {
   // Regression: seeding is gated on !app.isPackaged, so a real install starts
   // with no products. The picker still rendered its "Party supplies" and
