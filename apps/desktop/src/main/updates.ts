@@ -112,5 +112,16 @@ function applyUpdateSettings(settings: AppSettings): void {
 }
 
 export function restartAndInstall(): void {
-  autoUpdater.quitAndInstall();
+  /*
+   * (isSilent, isForceRunAfter). Without isSilent the assisted NSIS installer
+   * runs interactively, so every "Restart & install" replayed the full setup
+   * wizard — choose all-users-or-just-me, choose the folder — questions the
+   * person already answered when they first installed. Silent mode runs the
+   * installer with /S, which reuses the install mode and directory recorded at
+   * first install, and force-run brings the app straight back up after.
+   *
+   * A fresh install from the downloaded .exe still shows the wizard, which is
+   * the one time those questions are worth asking.
+   */
+  autoUpdater.quitAndInstall(true, true);
 }
