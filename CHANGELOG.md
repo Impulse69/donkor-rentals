@@ -2,6 +2,15 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.5.0-beta.7] - 2026-08-20 (BETA)
+
+### The app opens at 80% zoom
+
+More fits on screen out of the box. Ctrl + and Ctrl - still adjust it, and
+Ctrl 0 resets to the new 80% default.
+
+---
+
 ## [1.5.0-beta.6] - 2026-08-20 (BETA)
 
 ### Take payment now offers Statutory or Simple

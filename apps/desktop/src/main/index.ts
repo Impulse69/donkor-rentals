@@ -23,7 +23,7 @@ if (process.env['DONKOR_USERDATA_OVERRIDE']) {
 }
 
 /** Page zoom applied on launch; Ctrl/Cmd +, - and 0 adjust and reset it. */
-const DEFAULT_ZOOM = 0.9;
+const DEFAULT_ZOOM = 0.8;
 const ZOOM_STEP = 0.05;
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 1.4;
