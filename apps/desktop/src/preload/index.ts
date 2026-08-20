@@ -255,8 +255,8 @@ const api = {
     get: (id: string) => call<InvoiceWithLines | null>('invoices:get', { id }),
     createFromBooking: (input: InvoiceCreateFromBooking) =>
       call<InvoiceWithLines>('invoices:createFromBooking', input),
-    previewForBooking: (bookingId: string) =>
-      call<InvoicePreview>('invoices:previewForBooking', { bookingId }),
+    previewForBooking: (bookingId: string, includeStatutory?: boolean) =>
+      call<InvoicePreview>('invoices:previewForBooking', { bookingId, includeStatutory }),
     takePayment: (input: TakePaymentInput) =>
       call<{ invoice: InvoiceWithLines; payment: Payment; created_invoice: boolean }>(
         'invoices:takePayment',

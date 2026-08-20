@@ -414,8 +414,18 @@ export interface InvoicePreview {
  */
 const QUICK_INVOICE_DEFAULTS = { includeStatutory: true, discount: 0 } as const;
 
-export function previewInvoiceForBooking(db: Database, tenantId: string, bookingId: string): InvoicePreview {
-  const q = quoteInvoiceForBooking(db, tenantId, bookingId, QUICK_INVOICE_DEFAULTS);
+export function previewInvoiceForBooking(
+  db: Database,
+  tenantId: string,
+  bookingId: string,
+  // The counter can sell either way: Statutory adds NHIL/GETFund/VAT, Simple
+  // charges the subtotal alone. Same choice the New Invoice form offers.
+  includeStatutory: boolean = QUICK_INVOICE_DEFAULTS.includeStatutory,
+): InvoicePreview {
+  const q = quoteInvoiceForBooking(db, tenantId, bookingId, {
+    includeStatutory,
+    discount: QUICK_INVOICE_DEFAULTS.discount,
+  });
   return {
     days: q.days,
     subtotal_pesewas: q.subtotal,
@@ -423,7 +433,7 @@ export function previewInvoiceForBooking(db: Database, tenantId: string, booking
     getfund_pesewas: q.breakdown.getfund,
     vat_pesewas: q.breakdown.vat,
     total_pesewas: q.total,
-    include_statutory_taxes: QUICK_INVOICE_DEFAULTS.includeStatutory,
+    include_statutory_taxes: includeStatutory,
   };
 }
 
@@ -671,6 +681,7 @@ export function takePaymentForBooking(
     amount_pesewas: number;
     method: PaymentCreateInput['method'];
     paid_at: string;
+    include_statutory_taxes?: boolean | undefined;
     reference?: string | null | undefined;
     notes?: string | null | undefined;
   },
@@ -697,10 +708,25 @@ export function takePaymentForBooking(
       const found = getInvoice(db, tenantId, live.id);
       if (!found) throw new Error('takePaymentForBooking: invoice readback failed');
       invoice = found;
+      // An existing invoice has already fixed the tax format — its total is
+      // what the customer owes and what the ledger will post. A contradicting
+      // choice from the sheet means the screen and the books are about to
+      // disagree about the price, so refuse rather than silently charge a
+      // total the person never saw. (The sheet hides the choice whenever an
+      // invoice exists; this trips only if a stale screen slips through.)
+      if (
+        input.include_statutory_taxes !== undefined &&
+        input.include_statutory_taxes !== invoice.include_statutory_taxes
+      ) {
+        throw new Error(
+          `This booking is already invoiced ${invoice.include_statutory_taxes ? 'with' : 'without'} statutory taxes. ` +
+            'Void that invoice first to change the format.',
+        );
+      }
     } else {
       invoice = createInvoiceFromBooking(db, tenantId, {
         booking_id: input.booking_id,
-        include_statutory_taxes: QUICK_INVOICE_DEFAULTS.includeStatutory,
+        include_statutory_taxes: input.include_statutory_taxes ?? QUICK_INVOICE_DEFAULTS.includeStatutory,
         discount_pesewas: QUICK_INVOICE_DEFAULTS.discount,
       } as InvoiceCreateFromBooking);
       created = true;

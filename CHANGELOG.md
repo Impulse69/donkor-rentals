@@ -2,6 +2,31 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.5.0-beta.6] - 2026-08-20 (BETA)
+
+### Take payment now offers Statutory or Simple
+
+The counter sheet has a **Taxes** choice: **Statutory** adds NHIL, GETFund and
+VAT on top of the rental; **Simple** charges the flat price. Switching reprices
+the amount on the spot - the figure comes from the same calculation that writes
+the invoice, so what you see is what is charged and what the books carry.
+
+The books stay exact either way:
+
+- A **Simple** sale books the whole amount to income and cash, and owes the GRA
+  nothing - the tax accounts are untouched, because the customer was never
+  charged any.
+- A **Statutory** sale books the net to income and each levy to its own
+  liability account, to the pesewa.
+- A counter sale books **identically, line for line**, to raising the same
+  invoice by hand and paying it.
+
+Once a booking already has an invoice, the choice disappears - that invoice has
+fixed the price and the format. Changing it at the counter would make the
+screen and the books disagree, so the app refuses rather than guessing.
+
+---
+
 ## [1.5.0-beta.5] - 2026-08-19 (BETA)
 
 ### Fixed: the printed invoice and receipt were wrong in ways a customer would see

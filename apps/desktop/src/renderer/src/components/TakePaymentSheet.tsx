@@ -39,9 +39,21 @@ interface Props {
  */
 export function TakePaymentSheet({ open, bookingId, owing, onClose, onTaken }: Props): JSX.Element {
   const toast = useToast();
+
+  /*
+   * Statutory or Simple — the same choice the New Invoice form offers, because
+   * this sheet raises a real invoice underneath. Some rentals are priced with
+   * NHIL/GETFund/VAT on top; the small cash ones are quoted flat. Only offered
+   * while there is no invoice yet: an existing invoice has already fixed the
+   * format and its total, and the server refuses a contradicting choice.
+   *
+   * Repricing goes through the server, not local arithmetic, so the figure on
+   * this sheet is the figure the invoice and the ledger will carry.
+   */
+  const [statutory, setStatutory] = useState(true);
   const preview = useAsync(
-    () => (open && owing === null ? api.invoices.previewForBooking(bookingId) : Promise.resolve(null)),
-    [open, owing, bookingId],
+    () => (open && owing === null ? api.invoices.previewForBooking(bookingId, statutory) : Promise.resolve(null)),
+    [open, owing, bookingId, statutory],
   );
 
   const expected = owing ?? (preview.status === 'ok' ? preview.data?.total_pesewas ?? null : null);
@@ -51,7 +63,10 @@ export function TakePaymentSheet({ open, bookingId, owing, onClose, onTaken }: P
   const [paidOn, setPaidOn] = useState(todayInput());
   const [saving, setSaving] = useState(false);
 
-  // Seed the amount once the figure is known; re-seed if the sheet reopens.
+  // Seed the amount once the figure is known; re-seed when the sheet reopens or
+  // the tax choice reprices the rental. Deliberately overwrites a hand-typed
+  // amount on toggle: the old figure belongs to the other format, and carrying
+  // it across is how someone charges a taxed total on an untaxed sale.
   useEffect(() => {
     if (open && expected !== null) setAmount(expected);
   }, [open, expected]);
@@ -61,6 +76,7 @@ export function TakePaymentSheet({ open, bookingId, owing, onClose, onTaken }: P
       setReference('');
       setMethod('cash');
       setPaidOn(todayInput());
+      setStatutory(true);
     }
   }, [open]);
 
@@ -73,6 +89,9 @@ export function TakePaymentSheet({ open, bookingId, owing, onClose, onTaken }: P
         amount_pesewas: amount,
         method,
         paid_at: dateInputToIso(paidOn, new Date().toTimeString().slice(0, 5)),
+        // Only meaningful when the sheet is raising the invoice itself; when
+        // one exists the server holds the sheet to that invoice's format.
+        ...(owing === null ? { include_statutory_taxes: statutory } : {}),
         reference: reference.trim() || null,
         notes: null,
       });
@@ -113,6 +132,26 @@ export function TakePaymentSheet({ open, bookingId, owing, onClose, onTaken }: P
         </>
       }
     >
+      {owing === null && (
+        <div style={{ marginBottom: 14 }}>
+          <Select
+            label="Taxes"
+            value={statutory ? 'statutory' : 'simple'}
+            onChange={(e) => setStatutory(e.target.value === 'statutory')}
+            options={[
+              { value: 'statutory', label: 'Statutory — adds NHIL, GETFund & VAT' },
+              { value: 'simple', label: 'Simple — no taxes' },
+            ]}
+            hint={
+              preview.status === 'ok' && preview.data
+                ? statutory
+                  ? `${formatGhs(preview.data.subtotal_pesewas)} + ${formatGhs(preview.data.nhil_pesewas + preview.data.getfund_pesewas + preview.data.vat_pesewas)} tax`
+                  : `${formatGhs(preview.data.subtotal_pesewas)}, nothing added`
+                : undefined
+            }
+          />
+        </div>
+      )}
       <div className="form-grid">
         <MoneyInput
           label="Amount received"
@@ -140,11 +179,7 @@ export function TakePaymentSheet({ open, bookingId, owing, onClose, onTaken }: P
           onChange={(e) => setPaidOn(e.target.value)}
         />
       </div>
-      {preview.status === 'ok' && preview.data?.include_statutory_taxes && owing === null && (
-        <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-          Includes NHIL, GETFund and VAT. To invoice without them, use Create invoice instead.
-        </p>
-      )}
+
     </Modal>
   );
 }
