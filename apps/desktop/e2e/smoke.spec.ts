@@ -28,7 +28,7 @@ test.beforeAll(async () => {
   });
   win = await app.firstWindow();
 
-  // The app ships at 90% page zoom (see DEFAULT_ZOOM in main/index.ts), but
+  // The app ships at 80% page zoom (see DEFAULT_ZOOM in main/index.ts), but
   // Electron's zoom factor offsets Playwright's hit-testing: clicks land off
   // target and retry until the test times out. Drive at 100% instead. Zoom is a
   // rendering scale, so every assertion here — structure, navigation, copy — is
