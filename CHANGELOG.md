@@ -2,6 +2,22 @@
 
 All notable changes to Donkor & Sons Rental Management Software.
 
+## [1.5.0-beta.8] - 2026-08-20 (BETA)
+
+### Updates install silently
+
+"Restart & install" used to replay the full setup wizard on every update -
+asking again whether to install for all users or just you, and where to put it.
+Those are questions for the first install, not every update. Updating now
+installs silently, reusing the choices you made when you first installed, and
+brings the app straight back up.
+
+One more interactive update: this fix ships INSIDE beta.8, so the update FROM
+beta.7 will still show the wizard one last time. Every update after that is
+silent.
+
+---
+
 ## [1.5.0-beta.7] - 2026-08-20 (BETA)
 
 ### The app opens at 80% zoom
