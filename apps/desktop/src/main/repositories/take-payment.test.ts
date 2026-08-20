@@ -8,6 +8,7 @@ import { createBooking } from './bookings';
 import {
   createInvoiceFromBooking,
   previewInvoiceForBooking,
+  recordPayment,
   takePaymentForBooking,
   updateInvoice,
 } from './invoices';
@@ -67,15 +68,28 @@ function booking(status: 'quote' | 'out' | 'cancelled' = 'out'): string {
   return created.id;
 }
 
-function take(bookingId: string, amount: number) {
+function take(bookingId: string, amount: number, opts: { statutory?: boolean } = {}) {
   return takePaymentForBooking(db, TENANT, {
     booking_id: bookingId,
     amount_pesewas: amount,
     method: 'cash',
     paid_at: '2026-03-01T09:00:00.000Z',
+    ...(opts.statutory === undefined ? {} : { include_statutory_taxes: opts.statutory }),
     reference: null,
     notes: null,
   });
+}
+
+/** Credit balance sitting on one of the tax liability accounts. */
+function taxPayable(key: 'tax.nhil_payable' | 'tax.getfund_payable' | 'tax.vat_payable'): number {
+  const id = resolveAccount(db, TENANT, key);
+  const row = db
+    .prepare(
+      `SELECT COALESCE(SUM(credit_pesewas),0) - COALESCE(SUM(debit_pesewas),0) AS bal
+       FROM journal_lines WHERE tenant_id = ? AND account_id = ?`,
+    )
+    .get(TENANT, id) as { bal: number };
+  return row.bal;
 }
 
 function totalIncome(): number {
@@ -271,5 +285,119 @@ describe('refusals', () => {
     expect(invoiceCount(id)).toBe(0);
     expect(totalIncome()).toBe(0);
     expect(cashBalance()).toBe(0);
+  });
+});
+
+describe('choosing the tax format at the counter', () => {
+  // 10 chairs x 10.00 x 2 days = 200.00 net. Statutory adds NHIL 5.00,
+  // GETFund 5.00, then VAT 15% on 210.00 = 31.50 — total 241.50.
+
+  it('a Simple sale charges the subtotal and owes the GRA nothing', () => {
+    const b = booking();
+    const { invoice } = take(b, 20_000, { statutory: false });
+
+    expect(invoice.total_pesewas).toBe(20_000);
+    expect(invoice.include_statutory_taxes).toBe(false);
+    expect(invoice.balance_due_pesewas).toBe(0);
+
+    // The books: income carries the sale, cash carries the money, and the tax
+    // liabilities are untouched — a Simple sale must not owe the GRA anything
+    // the customer was never charged.
+    expect(totalIncome()).toBe(20_000);
+    expect(cashBalance()).toBe(20_000);
+    expect(taxPayable('tax.nhil_payable')).toBe(0);
+    expect(taxPayable('tax.getfund_payable')).toBe(0);
+    expect(taxPayable('tax.vat_payable')).toBe(0);
+    expectBooksTie();
+  });
+
+  it('a Statutory sale books each levy to its own liability, to the pesewa', () => {
+    const b = booking();
+    const { invoice } = take(b, 24_150, { statutory: true });
+
+    expect(invoice.total_pesewas).toBe(24_150);
+    expect(invoice.balance_due_pesewas).toBe(0);
+
+    // Income is the net sale; the taxes are money held for the GRA, not revenue.
+    expect(totalIncome()).toBe(20_000);
+    expect(cashBalance()).toBe(24_150);
+    expect(taxPayable('tax.nhil_payable')).toBe(500);
+    expect(taxPayable('tax.getfund_payable')).toBe(500);
+    expect(taxPayable('tax.vat_payable')).toBe(3_150);
+    expectBooksTie();
+  });
+
+  it('defaults to Statutory when no choice is sent — the pre-existing behaviour', () => {
+    const { invoice } = take(booking(), 24_150);
+    expect(invoice.include_statutory_taxes).toBe(true);
+    expect(invoice.total_pesewas).toBe(24_150);
+    expectBooksTie();
+  });
+
+  it('the Simple preview is the Simple charge', () => {
+    const b = booking();
+    const quoted = previewInvoiceForBooking(db, TENANT, b, false);
+    expect(quoted.total_pesewas).toBe(20_000);
+    expect(quoted.nhil_pesewas).toBe(0);
+    expect(quoted.vat_pesewas).toBe(0);
+
+    const { invoice } = take(b, quoted.total_pesewas, { statutory: false });
+    expect(invoice.total_pesewas).toBe(quoted.total_pesewas);
+  });
+
+  it('refuses a choice that contradicts an invoice already raised', () => {
+    // The sheet hides the choice when an invoice exists; this is the backstop.
+    // Silently accepting would charge a total the person at the counter never
+    // saw — the screen said 200.00 flat while the books demanded 241.50.
+    const b = booking();
+    createInvoiceFromBooking(db, TENANT, {
+      booking_id: b,
+      include_statutory_taxes: true,
+    } as Parameters<typeof createInvoiceFromBooking>[2]);
+
+    expect(() => take(b, 20_000, { statutory: false })).toThrow(/already invoiced/i);
+
+    // ...and the matching choice, or no choice at all, still goes through.
+    const { invoice } = take(b, 24_150, { statutory: true });
+    expect(invoice.balance_due_pesewas).toBe(0);
+    expectBooksTie();
+  });
+
+  it('a Simple counter sale books identically to a Simple invoice raised by hand', () => {
+    const quick = booking();
+    take(quick, 20_000, { statutory: false });
+    const quickLines = db
+      .prepare(
+        `SELECT a.name AS account, jl.debit_pesewas AS d, jl.credit_pesewas AS c
+         FROM journal_lines jl JOIN accounts a ON a.id = jl.account_id
+         WHERE jl.tenant_id = ? ORDER BY a.name, d, c`,
+      )
+      .all(TENANT);
+
+    db = makeDb();
+    const manual = booking();
+    const inv = createInvoiceFromBooking(db, TENANT, {
+      booking_id: manual,
+      include_statutory_taxes: false,
+    } as Parameters<typeof createInvoiceFromBooking>[2]);
+    updateInvoice(db, TENANT, inv.id, { status: 'issued' } as Parameters<typeof updateInvoice>[3]);
+    recordPayment(db, TENANT, {
+      invoice_id: inv.id,
+      kind: 'payment',
+      amount_pesewas: 20_000,
+      method: 'cash',
+      paid_at: '2026-03-01T09:00:00.000Z',
+      reference: null,
+      notes: null,
+    } as Parameters<typeof recordPayment>[2]);
+    const manualLines = db
+      .prepare(
+        `SELECT a.name AS account, jl.debit_pesewas AS d, jl.credit_pesewas AS c
+         FROM journal_lines jl JOIN accounts a ON a.id = jl.account_id
+         WHERE jl.tenant_id = ? ORDER BY a.name, d, c`,
+      )
+      .all(TENANT);
+
+    expect(quickLines).toEqual(manualLines);
   });
 });

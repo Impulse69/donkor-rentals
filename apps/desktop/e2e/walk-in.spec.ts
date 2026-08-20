@@ -186,3 +186,69 @@ test('taking payment never raises a second invoice', async () => {
   }, id);
   expect(count).toBe(1);
 });
+
+test('the counter can sell Simple: toggling reprices, and the books match', async () => {
+  // 2 chairs x 8.00 x 1 day = 16.00 net. Statutory prices at 19.32
+  // (NHIL 0.40 + GETFund 0.40, then VAT 15% on 16.80 = 2.52).
+  const id = await bookingAt('out');
+  await openBooking(id, '?pay=1');
+  await expect(sheet()).toBeVisible();
+
+  const amount = sheet().getByLabel('Amount received');
+  await expect(amount).toHaveValue('19.32');
+
+  // Choose Simple: the server reprices and the amount follows.
+  await sheet().getByLabel('Taxes').selectOption('simple');
+  await expect(amount).toHaveValue('16.00');
+  await expect(sheet()).toContainText('nothing added');
+
+  // ...and back, so the choice is a real toggle, not a one-way door.
+  await sheet().getByLabel('Taxes').selectOption('statutory');
+  await expect(amount).toHaveValue('19.32');
+  await sheet().getByLabel('Taxes').selectOption('simple');
+  await expect(amount).toHaveValue('16.00');
+
+  await sheet().getByRole('button', { name: 'Take payment' }).click();
+  await expect(sheet()).not.toBeVisible();
+
+  // The invoice underneath is Simple, settled, with no tax anywhere on it.
+  const inv = await win.evaluate(async (bid) => {
+    type Inv = {
+      total_pesewas: number; balance_due_pesewas: number;
+      include_statutory_taxes: boolean; nhil_pesewas: number; vat_pesewas: number;
+    };
+    type Api = {
+      invoices: {
+        list: (f: unknown) => Promise<{ ok: boolean; data?: Array<{ id: string }> }>;
+        get: (id: string) => Promise<{ ok: boolean; data?: Inv }>;
+      };
+    };
+    const api = (window as unknown as { donkor: Api }).donkor;
+    const list = await api.invoices.list({ bookingId: bid });
+    const first = list.data?.[0];
+    if (!first) throw new Error('no invoice raised');
+    return (await api.invoices.get(first.id)).data;
+  }, id);
+
+  expect(inv?.include_statutory_taxes).toBe(false);
+  expect(inv?.total_pesewas).toBe(1600);
+  expect(inv?.balance_due_pesewas).toBe(0);
+  expect(inv?.nhil_pesewas).toBe(0);
+  expect(inv?.vat_pesewas).toBe(0);
+});
+
+test('the tax choice disappears once an invoice has fixed the format', async () => {
+  // An existing invoice owns the price; offering to reprice it at the counter
+  // would make the sheet and the books disagree.
+  const id = await bookingAt('out');
+  await win.evaluate(async (bid) => {
+    type Api = { invoices: { createFromBooking: (i: unknown) => Promise<{ ok: boolean }> } };
+    const api = (window as unknown as { donkor: Api }).donkor;
+    await api.invoices.createFromBooking({ booking_id: bid, include_statutory_taxes: true });
+  }, id);
+
+  await openBooking(id, '?pay=1');
+  await expect(sheet()).toBeVisible();
+  await expect(sheet().getByLabel('Amount received')).toHaveValue('19.32');
+  await expect(sheet().getByLabel('Taxes')).toHaveCount(0);
+});

@@ -38,8 +38,11 @@ export function registerInvoicesIpc(): void {
   // invoice the walk-in never has to see.
   ipcMain.handle(
     'invoices:previewForBooking',
-    wrap('invoices:previewForBooking', z.object({ bookingId: Uuid }), ({ bookingId }) =>
-      invoices.previewInvoiceForBooking(getDb(), tenant(), bookingId),
+    wrap(
+      'invoices:previewForBooking',
+      z.object({ bookingId: Uuid, includeStatutory: z.boolean().optional() }),
+      ({ bookingId, includeStatutory }) =>
+        invoices.previewInvoiceForBooking(getDb(), tenant(), bookingId, includeStatutory ?? true),
     ),
   );
 
@@ -52,6 +55,7 @@ export function registerInvoicesIpc(): void {
         amount_pesewas: Pesewas.refine((n) => n > 0, 'Amount must be more than zero'),
         method: PaymentMethod,
         paid_at: IsoDateTime,
+        include_statutory_taxes: z.boolean().optional(),
         reference: z.string().max(200).nullable().optional(),
         notes: z.string().max(2000).nullable().optional(),
       }),
